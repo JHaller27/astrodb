@@ -1,0 +1,7 @@
+# JetBrains
+.idea/*
+*.iml 
+
+# Python
+*.pyc
+
