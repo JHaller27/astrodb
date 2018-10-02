@@ -11,15 +11,18 @@ DB_URI = 'mongodb://localhost:27017/'
 DB_NAME = 'astrodb'
 COLL_NAME = 'fits_test'
 
+FITS_FILE, FITS_DIR = 'pdz_cosmos2015_v1.3.fits', '/media/james/TIBERIUS/astronomy_research'
+
 DEBUG = False
 
-def open_fits(fname, fdir='.'):
+
+def open_fits(fdir=FITS_DIR, fname=FITS_FILE):
     fname = fname.lstrip(os.path.sep)
     fdir = fdir.rstrip(os.path.sep)
     return fits.open(os.path.join(fdir, fname), memmp=True)
 
 
-def get_collection(db_uri, db_name, coll_name):
+def get_collection(db_uri=DB_URI, db_name=DB_NAME, coll_name=COLL_NAME):
     client = pymongo.MongoClient(db_uri)
     db = client[db_name]
     coll = db[coll_name]
@@ -27,19 +30,20 @@ def get_collection(db_uri, db_name, coll_name):
     return coll
 
 
-def generate_record(tbl, idx):
+def generate_record(rec, cols):
     # record: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
     if DEBUG:
         types = {}
+
     record = {}
-    for c in tbl.columns:
+    for c in cols:
         if c.name.lower() == 'id':
-            record['_id'] = int(tbl.data[c.name][idx])
+            record['_id'] = int(rec[c.name])
         else:
             record[c.name] = {}
             record[c.name]['format'] = c.format
 
-            data = str(tbl.data[c.name][idx])
+            data = str(rec[c.name])
             if re.search("[0-9]+(\.[0-9]+)", data) is not None:
                 data = float(data)
             elif re.search("[0-9]+", data) is not None:
@@ -58,28 +62,37 @@ def generate_record(tbl, idx):
     return record
 
 if __name__ == '__main__':
-    with open_fits('pdz_cosmos2015_v1.3.fits', '/media/james/TIBERIUS/astronomy_research') as hdu_table:
-        print('Requesting collection... ', end='')
-        collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
-        print('Done!')
-
+    record_list = []
+    with open_fits(FITS_DIR, FITS_FILE) as hdu_table:
         inserted_ids = []
-        increment = len(hdu_table[1].data) // 100
+        increment = 10#len(hdu_table[1].data) // 100
 
         print('Generating records... ', end='')
         sys.stdout.flush()
-        for i in range(1): #len(hdu_table[1].data)):
-            record = generate_record(hdu_table[1], i)
+        i = 0
+        for r in hdu_table[1].data:
+            record = generate_record(r, hdu_table[1].columns)
 
             if DEBUG:
                 print(record)
 
-            inserted_ids.append(collection.insert_one(record))
-            if i % increment == increment - 1:
+            record_list.append(record)
+            if i % increment == 0:
                 print('.', end='')
                 sys.stdout.flush()
+            i += 1
         print('Done!')
         sys.stdout.flush()
+
+    print('Requesting collection... ', end='')
+    collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
+    print('Done!')
+
+    print('Inserting records... ')
+    sys.stdout.flush()
+    inserted_ids = collection.insert_many(record_list)
+    print('Done!')
+    sys.stdout.flush()
 
     print('Inserted {} records'.format(len(inserted_ids)))
 
