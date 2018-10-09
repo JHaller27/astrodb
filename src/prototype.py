@@ -47,9 +47,9 @@ def generate_record(rec, cols):
             record[i]['format'] = c['format']
 
             data = str(rec[i])
-            if re.search("[0-9]+(\.[0-9]+)", data) is not None:
+            if re.search("\-?[0-9]+\.[0-9]+", data) is not None:
                 data = float(data)
-            elif re.search("[0-9]+", data) is not None:
+            elif re.search("\-?[0-9]+", data) is not None:
                 data = int(data)
             record[i]['value'] = data
 
