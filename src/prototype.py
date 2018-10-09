@@ -72,11 +72,11 @@ def get_fits_columns(cols):
 if __name__ == '__main__':
     record_list = []
     with open_fits(FITS_DIR, FITS_FILE) as hdu_table:
-        increment = 10#len(hdu_table[1].data) // 100
+        increment = len(hdu_table[1].data) // 10000
 
         cols = get_fits_columns(hdu_table[1].columns)
 
-        print('Generating records... ', end='')
+        print('Generating records... ')
         sys.stdout.flush()
         i = 0
         for r in hdu_table[1].data:
@@ -86,9 +86,11 @@ if __name__ == '__main__':
                 print(record)
 
             record_list.append(record)
-            if i % increment == 0:
-                print('.', end='')
+
+            if (i + 1) % increment == 0:
+                print('{}/{}'.format(i, len(hdu_table[1].data)))
                 sys.stdout.flush()
+                exit()
             i += 1
         print('Done!')
         sys.stdout.flush()
