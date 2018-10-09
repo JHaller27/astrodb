@@ -35,20 +35,23 @@ def generate_record(rec, cols):
     if DEBUG:
         types = {}
 
-    record = {}
-    for c in cols:
-        if c.name.lower() == 'id':
-            record['_id'] = int(rec[c.name])
-        else:
-            record[c.name] = {}
-            record[c.name]['format'] = c.format
+    rec = list(rec)
 
-            data = str(rec[c.name])
+    record = {}
+    for i in range(len(cols)):
+        c = cols[i]
+        if c['name'].lower() == 'id':
+            record['_id'] = int(rec[i])
+        else:
+            record[i] = {}
+            record[i]['format'] = c['format']
+
+            data = str(rec[i])
             if re.search("[0-9]+(\.[0-9]+)", data) is not None:
                 data = float(data)
             elif re.search("[0-9]+", data) is not None:
                 data = int(data)
-            record[c.name]['value'] = data
+            record[i]['value'] = data
 
     if DEBUG:
         for c_name in record:
@@ -61,17 +64,23 @@ def generate_record(rec, cols):
 
     return record
 
+
+def get_fits_columns(cols):
+    return [{'name': c.name, 'format': str(c.format)} for c in cols]
+
+
 if __name__ == '__main__':
     record_list = []
     with open_fits(FITS_DIR, FITS_FILE) as hdu_table:
-        inserted_ids = []
         increment = 10#len(hdu_table[1].data) // 100
+
+        cols = get_fits_columns(hdu_table[1].columns)
 
         print('Generating records... ', end='')
         sys.stdout.flush()
         i = 0
         for r in hdu_table[1].data:
-            record = generate_record(r, hdu_table[1].columns)
+            record = generate_record(r, cols)
 
             if DEBUG:
                 print(record)
