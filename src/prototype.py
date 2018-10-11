@@ -43,15 +43,15 @@ def generate_record(rec, cols):
         if c['name'].lower() == 'id':
             record['_id'] = int(rec[i])
         else:
-            record[i] = {}
-            record[i]['format'] = c['format']
+            record[c['name']] = {}
+            record[c['name']]['format'] = c['format']
 
             data = str(rec[i])
             if re.search("\-?[0-9]+\.[0-9]+", data) is not None:
                 data = float(data)
             elif re.search("\-?[0-9]+", data) is not None:
                 data = int(data)
-            record[i]['value'] = data
+            record[c['name']]['value'] = data
 
     if DEBUG:
         for c_name in record:
