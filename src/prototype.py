@@ -22,11 +22,12 @@ def open_fits(fdir=FITS_DIR, fname=FITS_FILE):
     return fits.open(os.path.join(fdir, fname), memmp=True)
 
 
-def get_collection(db_uri=DB_URI, db_name=DB_NAME, coll_name=COLL_NAME):
+def get_collection(db_uri=DB_URI, db_name=DB_NAME, coll_name=COLL_NAME, drop=True):
     client = pymongo.MongoClient(db_uri)
     db = client[db_name]
     coll = db[coll_name]
-    coll.drop()
+    if drop:
+        coll.drop()
     return coll
 
 
@@ -69,12 +70,26 @@ def get_fits_columns(cols):
     return [{'name': c.name, 'format': str(c.format)} for c in cols]
 
 
+def insert_records(collection, record_list):
+    print('Inserting {} records... '.format(len(record_list)), end='')
+    sys.stdout.flush()
+
+    insert_result = collection.insert_many(record_list)
+
+    return insert_result
+
+
 if __name__ == '__main__':
     record_list = []
+    record_count = 0
     with open_fits(FITS_DIR, FITS_FILE) as hdu_table:
-        increment = len(hdu_table[1].data) // 10000
+        increment = 100
 
         cols = get_fits_columns(hdu_table[1].columns)
+
+        print('Requesting collection... ', end='')
+        collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
+        print('Done!')
 
         print('Generating records... ')
         sys.stdout.flush()
@@ -86,24 +101,19 @@ if __name__ == '__main__':
                 print(record)
 
             record_list.append(record)
+            record_count += 1
 
             if (i + 1) % increment == 0:
-                print('{}/{}'.format(i, len(hdu_table[1].data)))
-                sys.stdout.flush()
-                exit()
+                insert_records(collection, record_list)
+                record_list = []
+
+                print('\t{} records left'.format(len(hdu_table[1].data) - record_count))
+
             i += 1
+
+        insert_records(collection, record_list)
+
         print('Done!')
         sys.stdout.flush()
 
-    print('Requesting collection... ', end='')
-    collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
-    print('Done!')
-
-    print('Inserting records... ')
-    sys.stdout.flush()
-    inserted_ids = collection.insert_many(record_list)
-    print('Done!')
-    sys.stdout.flush()
-
-    print('Inserted {} records'.format(len(inserted_ids)))
-
+    print('Database successfully populated')
