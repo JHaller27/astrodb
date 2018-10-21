@@ -2,18 +2,34 @@
 
 from astropy.io import fits
 import os
-import pymongo
+import sqlite3
 import sys
-import re
 
 
-DB_URI = 'mongodb://localhost:27017/'
-DB_NAME = 'astrodb'
-COLL_NAME = 'fits_test'
+DB_NAME = 'astro.db'
+TBL_NAME = 'fits_test'
 
 FITS_FILE, FITS_DIR = 'pdz_cosmos2015_v1.3.fits', '/media/james/TIBERIUS/astronomy_research'
 
+CONN_LOCATION = os.path.join(FITS_DIR, 'sqlite', DB_NAME)
+
 DEBUG = False
+
+FITS2SQLITE_DATATYPES = {
+    # SQLite types: NULL, INTEGER, REAL, TEXT, BLOB
+    'L': 'INTEGER',  # Boolean
+    'X': 'INTEGER',  # Bit
+    'B': 'INTEGER',  # Unigned byte
+    'I': 'INTEGER',  # 16-bit int
+    'J': 'INTEGER',  # 32-bit int
+    'K': 'INTEGER',  # 64-bit int
+    'A': 'TEXT',     # Character
+    'E': 'REAL',     # Single float
+    'D': 'REAL',     # Double float
+    'C': 'TEXT',     # Single complex
+    'M': 'TEXT',     # Double complex
+    'Q': 'TEXT'     # Array descriptor
+}
 
 
 def open_fits(fdir=FITS_DIR, fname=FITS_FILE):
@@ -22,61 +38,59 @@ def open_fits(fdir=FITS_DIR, fname=FITS_FILE):
     return fits.open(os.path.join(fdir, fname), memmp=True)
 
 
-def get_collection(db_uri=DB_URI, db_name=DB_NAME, coll_name=COLL_NAME, drop=True):
-    client = pymongo.MongoClient(db_uri)
-    db = client[db_name]
-    coll = db[coll_name]
-    if drop:
-        coll.drop()
-    return coll
+def get_table(cols):
+    conn = sqlite3.connect(CONN_LOCATION)
+    print('Opened database at ' + CONN_LOCATION)
+
+    c = conn.cursor()
+
+    # Drop table
+    try:
+        c.execute('DROP TABLE %s' % TBL_NAME)
+        print('Dropping pre-existing table %s' % TBL_NAME)
+    except sqlite3.OperationalError:
+        print('No table %s found' % TBL_NAME)
+
+    # Create table
+    create_table_start = 'CREATE TABLE %s' % TBL_NAME
+    #     Using %s is dangerous if fits column name is sql injection attack. Not considered significant risk
+    table_cols = ', '.join(['%s %s' % (c['name'], FITS2SQLITE_DATATYPES[c['format']]) for c in cols])
+
+    try:
+        c.execute('%s (%s)' % (create_table_start, table_cols))
+        print('New database created')
+    except sqlite3.OperationalError:
+        print('Existing database found')
+
+    return conn, c
 
 
 def generate_record(rec, cols):
-    # record: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
-    if DEBUG:
-        types = {}
-
-    rec = list(rec)
-
-    record = {}
-    for i in range(len(cols)):
-        c = cols[i]
-        if c['name'].lower() == 'id':
-            record['_id'] = int(rec[i])
+    # record: (<value1>, <value2>, ...)
+    rec_list = []
+    for c in cols:
+        data = rec[c['name']]
+        data_type = FITS2SQLITE_DATATYPES[c['format']]
+        if data_type == 'INTEGER':
+            data = int(data)
+        elif data_type == 'REAL':
+            data = float(data)
         else:
-            record[c['name']] = {}
-            record[c['name']]['format'] = c['format']
-
-            data = str(rec[i])
-            if re.search("\-?[0-9]+\.[0-9]+", data) is not None:
-                data = float(data)
-            elif re.search("\-?[0-9]+", data) is not None:
-                data = int(data)
-            record[c['name']]['value'] = data
-
-    if DEBUG:
-        for c_name in record:
-            try:
-                data = record[c_name]['value']
-            except TypeError:
-                data = record[c_name]
-            types[type(data)] = types[type(data)] + 1 if type(data) in types else 1
-        print(types)
-
-    return record
+            data = str(data)
+        rec_list.append(data)
+    return tuple(rec_list)
 
 
 def get_fits_columns(cols):
     return [{'name': c.name, 'format': str(c.format)} for c in cols]
 
 
-def insert_records(collection, record_list):
+def insert_records(cursor, record_list):
     print('Inserting {} records... '.format(len(record_list)), end='')
     sys.stdout.flush()
 
-    insert_result = collection.insert_many(record_list)
-
-    return insert_result
+    cursor.executemany('INSERT INTO %s VALUES (%s)' % (TBL_NAME, ', '.join(['?' for i in range(len(record_list[0]))])),
+                       record_list)
 
 
 if __name__ == '__main__':
@@ -87,8 +101,8 @@ if __name__ == '__main__':
 
         cols = get_fits_columns(hdu_table[1].columns)
 
-        print('Requesting collection... ', end='')
-        collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
+        print('Requesting table... ', end='')
+        conn, cursor = get_table(cols)
         print('Done!')
 
         print('Generating records... ')
@@ -104,14 +118,17 @@ if __name__ == '__main__':
             record_count += 1
 
             if (i + 1) % increment == 0:
-                insert_records(collection, record_list)
+                insert_records(cursor, record_list)
+                conn.commit()
                 record_list = []
 
                 print('\t{} records left'.format(len(hdu_table[1].data) - record_count))
+                conn.close()
+                exit()
 
             i += 1
 
-        insert_records(collection, record_list)
+        insert_records(cursor, record_list)
 
         print('Done!')
         sys.stdout.flush()
