@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-# noinspection PyUnresolvedReferences
 from astropy.io import fits
 
 import os
