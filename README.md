@@ -25,6 +25,10 @@ Test data: `COSMOS2015_Laigle+.fits.gz` from `ftp://ftp.iap.fr/pub/from_users/hj
 
 AstroPy tutorials can be found [here](http://www.astropy.org/astropy-tutorials/FITS-tables.html).
 
+Set up using a virtual environment (`python3.7 -m venv astropy/venv`,
+then begin any package-management commands with `. ./venv/bin/activate`).
+Can install prerequisite packages with `pip install -r requirements.txt`.
+
 ### Binary Table Data Format
 
 | FITS format code        | Description                    | 8-bit bytes |
