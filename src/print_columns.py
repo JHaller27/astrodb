@@ -1,3 +1,4 @@
+#!../venv/bin/python
 # Author: James Haller
 
 import sys
@@ -21,6 +22,10 @@ FORMAT_NAMES = {
 }
 
 
+def fmt2str(fmt):
+    return fmt if fmt not in FORMAT_NAMES else FORMAT_NAMES[fmt]
+
+
 def print_columns(filename):
     try:
         with fits.open(filename, memmap=True) as hdu_list:
@@ -30,7 +35,7 @@ def print_columns(filename):
         col_widths = {'name': len('name'), 'format': len('format')}
         for col in columns:
             col_widths['name'] = max(col_widths['name'], len(col.name))
-            col_widths['format'] = max(col_widths['format'], len(FORMAT_NAMES[col.format]))
+            col_widths['format'] = max(col_widths['format'], len(fmt2str(col.format)))
 
         # Print table
         fmt = '{:>{}} | {:<{}}'
@@ -49,7 +54,7 @@ def print_columns(filename):
         for col in columns:
             print(fmt.format(
                 col.name, col_widths['name'],
-                FORMAT_NAMES[col.format], col_widths['format']
+                fmt2str(col.format), col_widths['format']
             ))
     except FileNotFoundError as fnfe:
         print(fnfe, file=sys.stderr)
