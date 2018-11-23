@@ -21,13 +21,31 @@
 
 ## General Knowledge
 
-Test data: `COSMOS2015_Laigle+.fits.gz` from `ftp://ftp.iap.fr/pub/from_users/hjmcc/COSMOS2015`.
+Test data: `COSMOS2015_Laigle+.fits.gz` from `ftp://ftp.iap.fr/pub/from_users/hjmcc/COSMOS2015`,
+and some CANDELS data (fits files stored in a shared Google Drive folder).
 
 AstroPy tutorials can be found [here](http://www.astropy.org/astropy-tutorials/FITS-tables.html).
 
-Set up using a virtual environment (`python3.7 -m venv astropy/venv`,
-then begin any package-management commands with `. ./venv/bin/activate`).
-Can install prerequisite packages with `pip install -r requirements.txt`.
+Also of interest: [AstroPy coordinate tutorial](http://docs.astropy.org/en/stable/coordinates/).
+
+Using [Google Sheet](https://docs.google.com/spreadsheets/d/1EYDZTCAMssnQXcbRf49nZOhDgYF5AcsNECnIOVaHyZ8/edit?usp=sharing)
+to visualize data.
+
+## Setup
+Set up using a virtual environment...
+
+  `astrodb$ python3.7 -m venv venv; ln -s venv/bin/activate activate`
+
+While working with astrodb, make sure to first run the following command to activate the virtual environment...
+
+  `astrodb$ . ./activate`
+
+To exit the venv, use `astrodb$ deactivate`
+(this happens automatically when the terminal is closed).
+
+Install prerequisite packages with...
+
+  `pip install -r requirements.txt`
 
 ### Binary Table Data Format
 
