@@ -2,7 +2,6 @@
 
 from astropy.io import fits
 import pymongo
-import sys
 import re
 
 
@@ -106,7 +105,6 @@ def insert_records(collection: pymongo.collection, record_list: list):
     :return: an InsertManyResult object
     """
     print('Inserting {} records... '.format(len(record_list)), end='')
-    sys.stdout.flush()
 
     insert_result = collection.insert_many(record_list)
 
@@ -129,7 +127,6 @@ def main():
         print('Done!')
 
         print('Generating records... ')
-        sys.stdout.flush()
         i = 0
         for r in hdu_table[1].data:
             record = generate_record(r, cols)
@@ -151,7 +148,6 @@ def main():
         insert_records(collection, record_list)
 
         print('Done!')
-        sys.stdout.flush()
 
     print('Database successfully populated')
 
