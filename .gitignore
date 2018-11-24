@@ -5,3 +5,6 @@
 # Python
 *.pyc
 
+# Python venv
+venv/*
+activate
