@@ -1,7 +1,6 @@
 #!venv/bin/python
 
 from astropy.io import fits
-import os
 import pymongo
 import sys
 import re
@@ -11,7 +10,7 @@ DB_URI = 'mongodb://localhost:27017/'
 DB_NAME = 'astrodb'
 COLL_NAME = 'fits_test'
 
-FITS_FILE, FITS_DIR = 'pdz_cosmos2015_v1.3.fits', '/media/james/TIBERIUS/astronomy_research'
+FITS_FILE = 'COSMOS2015_Laigle+_v1.1.fits.gz'
 
 DEBUG = False
 
@@ -70,9 +69,9 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
             record[c['name']]['format'] = c['format']
 
             data = str(rec[i])
-            if re.search("\-?[0-9]+\.[0-9]+", data) is not None:
+            if re.search("-?[0-9]+\.[0-9]+", data) is not None:
                 data = float(data)
-            elif re.search("\-?[0-9]+", data) is not None:
+            elif re.search("-?[0-9]+", data) is not None:
                 data = int(data)
             record[c['name']]['value'] = data
 
