@@ -38,7 +38,7 @@ def print_columns(filename):
             col_widths['format'] = max(col_widths['format'], len(fmt2str(col.format)))
 
         # Print table
-        fmt = '{:>{}} | {:<{}}'
+        fmt = '{:<{}}'
 
         #   Table header / separator
         print(fmt.format(
