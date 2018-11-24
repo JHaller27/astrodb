@@ -113,23 +113,24 @@ def insert_records(collection: pymongo.collection, record_list: list):
 
 def main():
     """
-    Main driver for reading then inserting records
+    Open a fits file, read all records, and write to database in chunks
     """
-    record_list = []
-    record_count = 0
-    with open_fits() as hdu_table:
-        increment = 100
+    record_list = []  # List of records (as dicts)
+    record_count = 0  # Count of total records read thus far
 
-        cols = get_fits_columns(hdu_table[1].columns)
+    with open_fits() as hdu_table:
+        chunk_size = 100  # Number of records to read/write to database
+
+        columns = get_fits_columns(hdu_table[1].columns)
 
         print('Requesting collection... ', end='')
         collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
         print('Done!')
 
         print('Generating records... ')
-        i = 0
+        i = 0  # Total number of records read thus far
         for r in hdu_table[1].data:
-            record = generate_record(r, cols)
+            record = generate_record(r, columns)
 
             if DEBUG:
                 print(record)
@@ -137,7 +138,8 @@ def main():
             record_list.append(record)
             record_count += 1
 
-            if (i + 1) % increment == 0:
+            # Write chunk of records to database
+            if (i + 1) % chunk_size == 0:
                 insert_records(collection, record_list)
                 record_list = []
 
@@ -145,6 +147,7 @@ def main():
 
             i += 1
 
+        # Write remaining records to database
         insert_records(collection, record_list)
 
         print('Done!')
