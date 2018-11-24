@@ -79,7 +79,7 @@ def insert_records(collection, record_list):
     return insert_result
 
 
-if __name__ == '__main__':
+def main():
     record_list = []
     record_count = 0
     with open_fits(FITS_DIR, FITS_FILE) as hdu_table:
@@ -117,3 +117,7 @@ if __name__ == '__main__':
         sys.stdout.flush()
 
     print('Database successfully populated')
+
+
+if __name__ == '__main__':
+    main()
