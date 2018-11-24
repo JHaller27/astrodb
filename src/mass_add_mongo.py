@@ -16,13 +16,29 @@ FITS_FILE, FITS_DIR = 'pdz_cosmos2015_v1.3.fits', '/media/james/TIBERIUS/astrono
 DEBUG = False
 
 
-def open_fits(fdir=FITS_DIR, fname=FITS_FILE):
-    fname = fname.lstrip(os.path.sep)
-    fdir = fdir.rstrip(os.path.sep)
-    return fits.open(os.path.join(fdir, fname), memmp=True)
+def open_fits(fname: str=FITS_FILE) -> fits.HDUList:
+    """
+    Open a .fits file
+    :param fname: path to a .fits file
+    :return: An HDUList object
+    """
+    return fits.open(fname, memmp=True)
 
 
-def get_collection(db_uri=DB_URI, db_name=DB_NAME, coll_name=COLL_NAME, drop=True):
+def get_collection(
+        db_uri: str=DB_URI,
+        db_name: str=DB_NAME,
+        coll_name: str=COLL_NAME,
+        drop: bool=True) -> pymongo.collection:
+    """
+    Get MongoDB collection matching the parameters
+    :param db_uri: URI of MongoDB to connect to
+    :param db_name: Name of MongoDB database
+    :param coll_name: Name of MongoDB collection
+    :param drop: Set to True to drop the collection,
+                 otherwise set to False
+    :return: MongoDB collection object
+    """
     client = pymongo.MongoClient(db_uri)
     db = client[db_name]
     coll = db[coll_name]
@@ -31,7 +47,13 @@ def get_collection(db_uri=DB_URI, db_name=DB_NAME, coll_name=COLL_NAME, drop=Tru
     return coll
 
 
-def generate_record(rec, cols):
+def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
+    """
+    Returns a single dict object based on FITS records and columns.
+    :param rec: FITS record to convert
+    :param cols: List of column definitions
+    :return: Dict object representing new record
+    """
     # record: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
     if DEBUG:
         types = {}
@@ -60,17 +82,30 @@ def generate_record(rec, cols):
                 data = record[c_name]['value']
             except TypeError:
                 data = record[c_name]
+            # noinspection PyUnboundLocalVariable
             types[type(data)] = types[type(data)] + 1 if type(data) in types else 1
         print(types)
 
     return record
 
 
-def get_fits_columns(cols):
+def get_fits_columns(cols: fits.ColDefs) -> list:
+    """
+    Converts FITS columns to python "columns"
+    :param cols: Column definitions from astropy.fits
+    :return: List of dictionaries of the form
+             {'name': <column-name>, 'format': <column-format>}
+    """
     return [{'name': c.name, 'format': str(c.format)} for c in cols]
 
 
-def insert_records(collection, record_list):
+def insert_records(collection: pymongo.collection, record_list: list):
+    """
+    Inserts many records into a Mongo DB.
+    :param collection: Mongo collection to insert into
+    :param record_list: List of records (dicts) to insert
+    :return: an InsertManyResult object
+    """
     print('Inserting {} records... '.format(len(record_list)), end='')
     sys.stdout.flush()
 
@@ -80,9 +115,12 @@ def insert_records(collection, record_list):
 
 
 def main():
+    """
+    Main driver for reading then inserting records
+    """
     record_list = []
     record_count = 0
-    with open_fits(FITS_DIR, FITS_FILE) as hdu_table:
+    with open_fits() as hdu_table:
         increment = 100
 
         cols = get_fits_columns(hdu_table[1].columns)
