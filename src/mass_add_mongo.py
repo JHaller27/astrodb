@@ -113,7 +113,7 @@ def insert_records(collection: pymongo.collection, record_list: list) -> int:
     :param record_list: List of records (dicts) to insert
     :return: Number of records successfully written
     """
-    print('Inserting {} records... '.format(len(record_list)), end='')
+    print('Inserting {} records... '.format(len(record_list)))
 
     insert_result = collection.insert_many(record_list)
 
