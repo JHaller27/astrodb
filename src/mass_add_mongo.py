@@ -190,11 +190,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('path_to_fits')
-    parser.add_argument('--uri', '-u', help='MongoDB URI',
+    parser.add_argument('-u', '--uri', help='MongoDB URI',
                         default=LOCAL_MONGO_URI)
-    parser.add_argument('--db', '-d', help='MongoDB database name')
-    parser.add_argument('--coll', '-c', help='MongoDB collection name')
-    parser.add_argument('--buffer', '-b', help='Size of buffer of ready-to-upload records')
+    parser.add_argument('-d', '--db', help='MongoDB database name')
+    parser.add_argument('-c', '--coll', help='MongoDB collection name')
+    parser.add_argument('-b', '--buffer', help='Size of buffer of ready-to-upload records')
 
     args = parser.parse_args()
 
