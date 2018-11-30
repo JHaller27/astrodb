@@ -1,4 +1,4 @@
-#!venv/bin/python
+#!../venv/bin/python
 from typing import Iterator
 
 from astropy.io import fits
