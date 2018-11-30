@@ -46,6 +46,15 @@ def get_collection(
     return coll
 
 
+def hdu_records(hdu_list: fits.HDUList) -> Iterator:
+    """
+    Generator function to yield each record in hdu_list
+    :param hdu_list: HDUList object (containing data)
+    :return: Iterator for the record data in hdu_list
+    """
+    return iter(hdu_list[1].data)
+
+
 def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
     """
     Returns a single dict object based on FITS records and columns.
@@ -99,71 +108,75 @@ def get_fits_columns(hdu_list: fits.HDUList) -> list:
     return [{'name': c.name, 'format': str(c.format)} for c in cols]
 
 
-def insert_records(collection: pymongo.collection, record_list: list):
+def insert_records(collection: pymongo.collection, record_list: list) -> int:
     """
     Inserts many records into a Mongo DB.
     :param collection: Mongo collection to insert into
     :param record_list: List of records (dicts) to insert
-    :return: an InsertManyResult object
+    :return: Number of records successfully written
     """
     print('Inserting {} records... '.format(len(record_list)), end='')
 
     insert_result = collection.insert_many(record_list)
 
-    return insert_result
+    return len(insert_result.inserted_ids)
 
 
-def hdu_records(hdu_list: fits.HDUList) -> Iterator:
+def upload_hdu_list(hdu_list: fits.HDUList,
+                    collection: pymongo.collection,
+                    buffer_size: int) -> int:
     """
-    Generator function to yield each record in hdu_list
-    :param hdu_list: HDUList object (containing data)
-    :return: Iterator for the record data in hdu_list
+    Reads hdu_list, extracts data into dict "records", and
+    uploads chunks of data to a mongo collection.
+    :param hdu_list: HDUList object from which to read
+    :param collection: Mongo collection to insert into
+    :param buffer_size: (optional) Size of record buffer.
+                       When buffer is full, will flush to
+                       collection.
+                       <=0: upload all records only after
+                       all have been read.
+                       1: (default) upload every record
+                       after it is converted.
+                       X: upload after every X record is
+                       converted.
+    :return: Number of records successfully written
     """
-    return iter(hdu_list[1].data)
+    record_buffer = []    # List of records (as dicts)
+    inserted_record_count = 0  # Total number of records inserted thus far
+
+    columns = get_fits_columns(hdu_list)
+
+    for r in hdu_records(hdu_list):
+        record = generate_record(r, columns)
+
+        record_buffer.append(record)
+
+        # Write chunk of records to database
+        if 0 < buffer_size <= len(record_buffer):
+            inserted_record_count += insert_records(collection, record_buffer)
+            record_buffer = []
+
+    # Upload remaining records
+    inserted_record_count += insert_records(collection, record_buffer)
+
+    return inserted_record_count
 
 
 def main():
     """
     Open a fits file, read all records, and write to database in chunks
     """
-    record_list = []  # List of records (as dicts)
-    record_count = 0  # Count of total records read thus far
-
     with open_fits() as hdu_table:
-        chunk_size = 100  # Number of records to read/write to database
-
-        columns = get_fits_columns(hdu_table)
-
         print('Requesting collection... ', end='')
         collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
         print('Done!')
 
         print('Generating records... ')
-        i = 0  # Total number of records read thus far
-        for r in hdu_records(hdu_table):
-            record = generate_record(r, columns)
-
-            if DEBUG:
-                print(record)
-
-            record_list.append(record)
-            record_count += 1
-
-            # Write chunk of records to database
-            if (i + 1) % chunk_size == 0:
-                insert_records(collection, record_list)
-                record_list = []
-
-                print('\t{} records left'.format(len(hdu_table[1].data) - record_count))
-
-            i += 1
-
-        # Write remaining records to database
-        insert_records(collection, record_list)
+        record_count = upload_hdu_list(hdu_table, collection, buffer_size=100)
 
         print('Done!')
 
-    print('Database successfully populated')
+    print('Database successfully populated with {} records'.format(record_count))
 
 
 if __name__ == '__main__':
