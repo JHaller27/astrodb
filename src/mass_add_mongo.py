@@ -6,16 +6,12 @@ import pymongo
 import re
 
 
-DB_URI = 'mongodb://localhost:27017/'
-DB_NAME = 'astrodb'
-COLL_NAME = 'fits_test'
-
-FITS_FILE = 'COSMOS2015_Laigle+_v1.1.fits.gz'
+LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
 
 DEBUG = False
 
 
-def open_fits(fname: str=FITS_FILE) -> fits.HDUList:
+def open_fits(fname: str) -> fits.HDUList:
     """
     Open a .fits file
     :param fname: path to a .fits file
@@ -25,15 +21,16 @@ def open_fits(fname: str=FITS_FILE) -> fits.HDUList:
 
 
 def get_collection(
-        db_uri: str=DB_URI,
-        db_name: str=DB_NAME,
-        coll_name: str=COLL_NAME,
+        coll_name: str,
+        db_name: str,
+        db_uri: str=LOCAL_MONGO_URI,
         drop: bool=True) -> pymongo.collection:
     """
     Get MongoDB collection matching the parameters
-    :param db_uri: URI of MongoDB to connect to
-    :param db_name: Name of MongoDB database
     :param coll_name: Name of MongoDB collection
+    :param db_name: Name of MongoDB database
+    :param db_uri: URI of MongoDB to connect to
+                   Default: localhost mongodb
     :param drop: Set to True to drop the collection,
                  otherwise set to False
     :return: MongoDB collection object
@@ -162,13 +159,22 @@ def upload_hdu_list(hdu_list: fits.HDUList,
     return inserted_record_count
 
 
-def main():
+# Main processing
+# =========================================================
+
+def main(fits_path: str,
+         coll_name: str, db_name: str, db_uri: str=LOCAL_MONGO_URI):
     """
     Open a fits file, read all records, and write to database in chunks
+    :param fits_path: path to a fits file
+    :param coll_name: Name of MongoDB collection
+    :param db_name: Name of MongoDB database
+    :param db_uri: URI of MongoDB to connect to
+                   Default: localhost mongodb
     """
-    with open_fits() as hdu_table:
+    with open_fits(fname=fits_path) as hdu_table:
         print('Requesting collection... ', end='')
-        collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
+        collection = get_collection(coll_name, db_name, db_uri)
         print('Done!')
 
         print('Generating records... ')
@@ -180,4 +186,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(fits_path='COSMOS2015_Laigle+_v1.1.fits.gz',
+         coll_name='test', db_name='astrodb', db_uri=LOCAL_MONGO_URI)
