@@ -1,4 +1,5 @@
 #!venv/bin/python
+from typing import Iterator
 
 from astropy.io import fits
 import pymongo
@@ -51,8 +52,8 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
     :param rec: FITS record to convert
     :param cols: List of column definitions
     :return: Dict object representing new record
+             format: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
     """
-    # record: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
     if DEBUG:
         types = {}
 
@@ -87,13 +88,14 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
     return record
 
 
-def get_fits_columns(cols: fits.ColDefs) -> list:
+def get_fits_columns(hdu_list: fits.HDUList) -> list:
     """
     Converts FITS columns to python "columns"
-    :param cols: Column definitions from astropy.fits
-    :return: List of dictionaries of the form
-             {'name': <column-name>, 'format': <column-format>}
+    :param hdu_list: HDUList object (containing columns)
+    :return: Ordered list of dictionaries of the form
+             {'name': <column-name>, 'format': <data-format-code>}
     """
+    cols = hdu_list[1].columns
     return [{'name': c.name, 'format': str(c.format)} for c in cols]
 
 
@@ -111,6 +113,15 @@ def insert_records(collection: pymongo.collection, record_list: list):
     return insert_result
 
 
+def hdu_records(hdu_list: fits.HDUList) -> Iterator:
+    """
+    Generator function to yield each record in hdu_list
+    :param hdu_list: HDUList object (containing data)
+    :return: Iterator for the record data in hdu_list
+    """
+    return iter(hdu_list[1].data)
+
+
 def main():
     """
     Open a fits file, read all records, and write to database in chunks
@@ -121,7 +132,7 @@ def main():
     with open_fits() as hdu_table:
         chunk_size = 100  # Number of records to read/write to database
 
-        columns = get_fits_columns(hdu_table[1].columns)
+        columns = get_fits_columns(hdu_table)
 
         print('Requesting collection... ', end='')
         collection = get_collection(DB_URI, DB_NAME, COLL_NAME)
@@ -129,7 +140,7 @@ def main():
 
         print('Generating records... ')
         i = 0  # Total number of records read thus far
-        for r in hdu_table[1].data:
+        for r in hdu_records(hdu_table):
             record = generate_record(r, columns)
 
             if DEBUG:
