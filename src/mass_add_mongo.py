@@ -2,6 +2,7 @@
 from typing import Iterator
 
 from astropy.io import fits
+import argparse
 import pymongo
 import re
 
@@ -186,5 +187,15 @@ def main(fits_path: str,
 
 
 if __name__ == '__main__':
-    main(fits_path='COSMOS2015_Laigle+_v1.1.fits.gz',
-         coll_name='test', db_name='astrodb', db_uri=LOCAL_MONGO_URI)
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('path_to_fits')
+    parser.add_argument('--uri', '-u', help='MongoDB URI',
+                        default=LOCAL_MONGO_URI)
+    parser.add_argument('--db', '-d', help='MongoDB database name')
+    parser.add_argument('--coll', '-c', help='MongoDB collection name')
+
+    args = parser.parse_args()
+
+    main(fits_path=args.path_to_fits,
+         coll_name=args.coll, db_name=args.db, db_uri=args.uri)
