@@ -4,12 +4,13 @@ from typing import Iterator
 from astropy.io import fits
 import argparse
 import pymongo
+import logging
 import re
-
 
 LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
 
-DEBUG = False
+log = logging.getLogger('astrodb')
+log.setLevel(logging.INFO)
 
 
 def open_fits(fname: str) -> fits.HDUList:
@@ -21,11 +22,11 @@ def open_fits(fname: str) -> fits.HDUList:
     try:
         return fits.open(fname, memmp=True)
     except FileNotFoundError:
-        print("Could not find file '%s'" % fname)
+        log.error("Could not find file '%s'" % fname)
         exit(1)
     except OSError:
-        print("Something went wrong reading '%s'..." % fname)
-        print("Are you sure this is a fits-format file?")
+        log.error("Something went wrong reading '%s'..." % fname)
+        log.error("Are you sure this is a fits-format file?")
         exit(1)
 
 
@@ -54,7 +55,7 @@ def get_collection(
             coll.drop()
         return coll
     except pymongo.errors.ConfigurationError:
-        print("Could not connect to URI '%s'" % db_uri)
+        log.error("Could not connect to URI '%s'" % db_uri)
         exit(1)
 
 
@@ -75,7 +76,7 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
     :return: Dict object representing new record
              format: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
     """
-    if DEBUG:
+    if log.isEnabledFor(logging.DEBUG):
         types = {}
 
     rec = list(rec)
@@ -96,7 +97,7 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
                 data = int(data)
             record[c['name']]['value'] = data
 
-    if DEBUG:
+    if log.isEnabledFor(logging.DEBUG):
         for c_name in record:
             try:
                 data = record[c_name]['value']
@@ -104,7 +105,7 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
                 data = record[c_name]
             # noinspection PyUnboundLocalVariable
             types[type(data)] = types[type(data)] + 1 if type(data) in types else 1
-        print(types)
+        log.debug(types)
 
     return record
 
@@ -128,12 +129,12 @@ def insert_records(collection: pymongo.collection, record_list: list) -> int:
     :return: Number of records successfully written
     """
     try:
-        print('Inserting {} records... '.format(len(record_list)))
+        log.error('Inserting {} records... '.format(len(record_list)))
         insert_result = collection.insert_many(record_list)
         return len(insert_result.inserted_ids)
     except pymongo.errors.OperationFailure as of:
-        print("Insertion of %d records failed..." % len(record_list))
-        print("\t%s" % str(of))
+        log.error("Insertion of %d records failed..." % len(record_list))
+        log.error("%s" % str(of))
         exit(1)
 
 
@@ -191,16 +192,16 @@ def main(fits_path: str,
                    Default: localhost mongodb
     """
     with open_fits(fname=fits_path) as hdu_table:
-        print('Requesting collection... ', end='')
+        log.info('Requesting collection... ', end='')
         collection = get_collection(coll_name, db_name, db_uri)
-        print('Done!')
+        log.info('Done!')
 
-        print('Generating records... ')
+        log.info('Generating records... ')
         record_count = upload_hdu_list(hdu_table, collection, buffer_size=100)
 
-        print('Done!')
+        log.info('Done!')
 
-    print('Database successfully populated with {} records'.format(record_count))
+        log.info('Database successfully populated with {} records'.format(record_count))
 
 
 if __name__ == '__main__':
