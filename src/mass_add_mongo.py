@@ -1,5 +1,4 @@
 #!../venv/bin/python
-from typing import Iterator
 
 from astropy.io import fits
 import argparse
@@ -9,9 +8,29 @@ import re
 
 LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
 
-log = logging.getLogger('astrodb')
-log.setLevel(logging.INFO)
 
+# Setup logging
+# =========================================================
+
+logging.getLogger().setLevel(logging.NOTSET)
+log = logging.getLogger('astrodb')
+
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+fh = logging.FileHandler('astrodb.log')
+fh.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+fh.setFormatter(formatter)
+ch.setFormatter(formatter)
+
+log.addHandler(ch)
+log.addHandler(fh)
+
+
+# Process functions
+# =========================================================
 
 def open_fits(fname: str) -> fits.HDUList:
     """
@@ -20,9 +39,10 @@ def open_fits(fname: str) -> fits.HDUList:
     :return: An HDUList object
     """
     try:
+        log.info("Opening '%s'" % fname)
         return fits.open(fname, memmp=True)
     except FileNotFoundError:
-        log.error("Could not find file '%s'" % fname)
+        log.error("File not found!")
         exit(1)
     except OSError:
         log.error("Something went wrong reading '%s'..." % fname)
@@ -47,25 +67,29 @@ def get_collection(
     :return: MongoDB collection object
     """
     try:
+        log.info('Requesting collection... ')
+
         client = pymongo.MongoClient(db_uri)
 
         db = client[db_name]
         coll = db[coll_name]
         if drop:
             coll.drop()
+
+        log.info('Found!')
         return coll
     except pymongo.errors.ConfigurationError:
         log.error("Could not connect to URI '%s'" % db_uri)
         exit(1)
 
 
-def hdu_records(hdu_list: fits.HDUList) -> Iterator:
+def hdu_records(hdu_list: fits.HDUList) -> list:
     """
     Generator function to yield each record in hdu_list
     :param hdu_list: HDUList object (containing data)
-    :return: Iterator for the record data in hdu_list
+    :return: List of HDU records
     """
-    return iter(hdu_list[1].data)
+    return list(hdu_list[1].data)
 
 
 def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
@@ -118,18 +142,26 @@ def get_fits_columns(hdu_list: fits.HDUList) -> list:
              {'name': <column-name>, 'format': <data-format-code>}
     """
     cols = hdu_list[1].columns
+    log.info("File has %d columns" % len(cols))
     return [{'name': c.name, 'format': str(c.format)} for c in cols]
 
 
-def insert_records(collection: pymongo.collection, record_list: list) -> int:
+def insert_records(collection: pymongo.collection, record_list: list, total_count: int=None) -> int:
     """
     Inserts many records into a Mongo DB.
     :param collection: Mongo collection to insert into
     :param record_list: List of records (dicts) to insert
+    :param total_count: (optional) Total count of records
+                        to insert. Useful for progress
+                        reporting.
     :return: Number of records successfully written
     """
+    if total_count is None:
+        log.info('Inserting %d records... ' % len(record_list))
+    else:
+        log.info('Inserting %d/%d records... ' % (len(record_list), total_count))
+
     try:
-        log.error('Inserting {} records... '.format(len(record_list)))
         insert_result = collection.insert_many(record_list)
         return len(insert_result.inserted_ids)
     except pymongo.errors.OperationFailure as of:
@@ -162,18 +194,21 @@ def upload_hdu_list(hdu_list: fits.HDUList,
 
     columns = get_fits_columns(hdu_list)
 
-    for r in hdu_records(hdu_list):
+    log.info('Generating records... ')
+    hdu_record_list = hdu_records(hdu_list)
+    for r in hdu_record_list:
         record = generate_record(r, columns)
 
         record_buffer.append(record)
 
         # Write chunk of records to database
         if 0 < buffer_size <= len(record_buffer):
-            inserted_record_count += insert_records(collection, record_buffer)
+            tmp_count = insert_records(collection, record_buffer, len(hdu_record_list))
+            inserted_record_count += tmp_count
             record_buffer = []
 
     # Upload remaining records
-    inserted_record_count += insert_records(collection, record_buffer)
+    inserted_record_count += insert_records(collection, record_buffer, len(hdu_record_list))
 
     return inserted_record_count
 
@@ -192,11 +227,8 @@ def main(fits_path: str,
                    Default: localhost mongodb
     """
     with open_fits(fname=fits_path) as hdu_table:
-        log.info('Requesting collection... ', end='')
         collection = get_collection(coll_name, db_name, db_uri)
-        log.info('Done!')
 
-        log.info('Generating records... ')
         record_count = upload_hdu_list(hdu_table, collection, buffer_size=100)
 
         log.info('Done!')
