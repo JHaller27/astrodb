@@ -18,14 +18,22 @@ def open_fits(fname: str) -> fits.HDUList:
     :param fname: path to a .fits file
     :return: An HDUList object
     """
-    return fits.open(fname, memmp=True)
+    try:
+        return fits.open(fname, memmp=True)
+    except FileNotFoundError:
+        print("Could not find file '%s'" % fname)
+        exit(1)
+    except OSError:
+        print("Something went wrong reading '%s'..." % fname)
+        print("Are you sure this is a fits-format file?")
+        exit(1)
 
 
 def get_collection(
         coll_name: str,
         db_name: str,
         db_uri: str=LOCAL_MONGO_URI,
-        drop: bool=True) -> pymongo.collection:
+        drop: bool=False) -> pymongo.collection:
     """
     Get MongoDB collection matching the parameters
     :param coll_name: Name of MongoDB collection
@@ -34,14 +42,20 @@ def get_collection(
                    Default: localhost mongodb
     :param drop: Set to True to drop the collection,
                  otherwise set to False
+                 Default: False
     :return: MongoDB collection object
     """
-    client = pymongo.MongoClient(db_uri)
-    db = client[db_name]
-    coll = db[coll_name]
-    if drop:
-        coll.drop()
-    return coll
+    try:
+        client = pymongo.MongoClient(db_uri)
+
+        db = client[db_name]
+        coll = db[coll_name]
+        if drop:
+            coll.drop()
+        return coll
+    except pymongo.errors.ConfigurationError:
+        print("Could not connect to URI '%s'" % db_uri)
+        exit(1)
 
 
 def hdu_records(hdu_list: fits.HDUList) -> Iterator:
@@ -113,11 +127,14 @@ def insert_records(collection: pymongo.collection, record_list: list) -> int:
     :param record_list: List of records (dicts) to insert
     :return: Number of records successfully written
     """
-    print('Inserting {} records... '.format(len(record_list)))
-
-    insert_result = collection.insert_many(record_list)
-
-    return len(insert_result.inserted_ids)
+    try:
+        print('Inserting {} records... '.format(len(record_list)))
+        insert_result = collection.insert_many(record_list)
+        return len(insert_result.inserted_ids)
+    except pymongo.errors.OperationFailure as of:
+        print("Insertion of %d records failed..." % len(record_list))
+        print("\t%s" % str(of))
+        exit(1)
 
 
 def upload_hdu_list(hdu_list: fits.HDUList,
