@@ -4,9 +4,10 @@ from astropy.io import fits
 import argparse
 import pymongo
 import logging
-import re
 
 LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
+
+MONGO_MAX_INT = 2**(8*8)  # Max supported int size
 
 
 # Setup logging
@@ -108,11 +109,20 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
         if c['name'].lower() == 'id':
             record['_id'] = int(rec[i])
         else:
-            data = str(rec[i])
-            if re.search("-?[0-9]+\.[0-9]+", data) is not None:
-                data = float(data)
-            elif re.search("-?[0-9]+", data) is not None:
-                data = int(data)
+            # Try convert to integer
+            try:
+                data = int(rec[i])
+
+                # MongoDB can only handle 8-byte ints
+                if data >= MONGO_MAX_INT:
+                    data = str(rec[i])
+            except ValueError:
+                # Try convert to float
+                try:
+                    data = float(rec[i])
+                except ValueError:
+                    # If all else fails, encode as string
+                    data = str(rec[i])
             record[c['name']] = data
 
     return record
