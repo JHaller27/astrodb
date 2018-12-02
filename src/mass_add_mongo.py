@@ -225,7 +225,7 @@ def main(fits_path: str,
                    Default: localhost mongodb
     """
     with open_fits(fname=fits_path) as hdu_table:
-        collection = get_collection(coll_name, db_name, db_uri)
+        collection = get_collection(coll_name, db_name, db_uri, drop=True)
 
         record_count = upload_hdu_list(hdu_table, collection, buffer_size=100)
 
