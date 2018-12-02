@@ -146,21 +146,14 @@ def get_fits_columns(hdu_list: fits.HDUList) -> list:
     return [{'name': c.name, 'format': str(c.format)} for c in cols]
 
 
-def insert_records(collection: pymongo.collection, record_list: list, total_count: int=None) -> int:
+def insert_records(collection: pymongo.collection, record_list: list) -> int:
     """
     Inserts many records into a Mongo DB.
     :param collection: Mongo collection to insert into
     :param record_list: List of records (dicts) to insert
-    :param total_count: (optional) Total count of records
-                        to insert. Useful for progress
-                        reporting.
     :return: Number of records successfully written
     """
-    if total_count is None:
-        log.info('Inserting %d records... ' % len(record_list))
-    else:
-        log.info('Inserting %d/%d records... ' % (len(record_list), total_count))
-
+    log.info('Inserting %d records... ' % len(record_list))
     try:
         insert_result = collection.insert_many(record_list)
         return len(insert_result.inserted_ids)
@@ -203,12 +196,17 @@ def upload_hdu_list(hdu_list: fits.HDUList,
 
         # Write chunk of records to database
         if 0 < buffer_size <= len(record_buffer):
-            tmp_count = insert_records(collection, record_buffer, len(hdu_record_list))
+            tmp_count = insert_records(collection, record_buffer)
             inserted_record_count += tmp_count
+            log.info("\tProgress {}/{} ({:.2f}%)".format(
+                inserted_record_count, len(hdu_record_list),
+                (inserted_record_count*100) / len(hdu_record_list)
+            ))
             record_buffer = []
 
     # Upload remaining records
-    inserted_record_count += insert_records(collection, record_buffer, len(hdu_record_list))
+    inserted_record_count += insert_records(collection, record_buffer)
+    log.info("All %d/%d records uploaded!" % (inserted_record_count, len(hdu_record_list)))
 
     return inserted_record_count
 
