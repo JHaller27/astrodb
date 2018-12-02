@@ -100,9 +100,6 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
     :return: Dict object representing new record
              format: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
     """
-    if log.isEnabledFor(logging.DEBUG):
-        types = {}
-
     rec = list(rec)
 
     record = {}
@@ -120,16 +117,6 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
             elif re.search("-?[0-9]+", data) is not None:
                 data = int(data)
             record[c['name']]['value'] = data
-
-    if log.isEnabledFor(logging.DEBUG):
-        for c_name in record:
-            try:
-                data = record[c_name]['value']
-            except TypeError:
-                data = record[c_name]
-            # noinspection PyUnboundLocalVariable
-            types[type(data)] = types[type(data)] + 1 if type(data) in types else 1
-        log.debug(types)
 
     return record
 
