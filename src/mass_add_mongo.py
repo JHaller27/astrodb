@@ -108,15 +108,12 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
         if c['name'].lower() == 'id':
             record['_id'] = int(rec[i])
         else:
-            record[c['name']] = {}
-            record[c['name']]['format'] = c['format']
-
             data = str(rec[i])
             if re.search("-?[0-9]+\.[0-9]+", data) is not None:
                 data = float(data)
             elif re.search("-?[0-9]+", data) is not None:
                 data = int(data)
-            record[c['name']]['value'] = data
+            record[c['name']] = data
 
     return record
 
