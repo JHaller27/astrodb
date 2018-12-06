@@ -1,5 +1,22 @@
 # AstroDB
 
+AstroDB is a set of Python tools to interact with a database of astronomical data.
+AstroDB uses the [astropy](http://www.astropy.org) Python module to read in data of astronomical objects from fits files, and store the object data in MongoDB.
+Once the database is populated with data, more data can be added either as an additional and independent object, or as more information on existing data (using [coordinate matching](http://docs.astropy.org/en/stable/coordinates/) to determine related object data).
+
+## Table of Contents
+
+* Rough Product Description
+* Setup
+* General Knowledge
+
+* Installation
+* Usage
+* Contributing
+* Credits
+* License
+
+
 ## Rough Product Description
 
 **Requirements**
