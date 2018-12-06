@@ -9,13 +9,13 @@ Once the database is populated with data, more data can be added either as an ad
 
 * [Installation](#installation)
 * [Usage](#usage)
+* [Contributing](#contributing)
+* [Credits](#credits)
+* [License](#license)
 
 * Rough Product Description
 * General Knowledge
 
-* [Contributing](#contributing)
-* [Credits](#credits)
-* [License](#license)
 
 
 ## Installation
@@ -88,6 +88,26 @@ To run a tool, use...
 To run a tool, use...
 
   `astrodb/src$ python3.7 <astrodb-tool>.py`
+
+
+## Contributing
+
+If you're thinking about contributing to this project, chances are that I am no longer mainting this project.
+It is recommended that you fork this repository on GitHub and maintain your own version.
+
+For more legal information on contributing see [license](#license).
+
+
+## Credits
+
+Credit for the concept and requirements goes to Dr. Jeyhan Kartaltepe (Rochester Institute of Technology).
+
+Credit for development goes to me (James Haller, Rochester Institute of Technology).
+
+
+## License
+
+See separate [LICENSE](/LICENSE) file.
 
 
 ## Rough Product Description
