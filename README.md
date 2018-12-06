@@ -109,6 +109,9 @@ Credit for development goes to me (James Haller, Rochester Institute of Technolo
 
 See separate [LICENSE](/LICENSE) file.
 
+-----
+
+**The following sections will eventually be moved to the GitHub wiki**
 
 ## Rough Product Description
 
