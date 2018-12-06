@@ -7,15 +7,15 @@ Once the database is populated with data, more data can be added either as an ad
 
 ## Table of Contents
 
-* Installation
-* Usage
+* [Installation](#installation)
+* [Usage](#usage)
 
 * Rough Product Description
 * General Knowledge
 
-* Contributing
-* Credits
-* License
+* [Contributing](#contributing)
+* [Credits](#credits)
+* [License](#license)
 
 
 ## Installation
