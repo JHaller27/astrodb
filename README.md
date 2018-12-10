@@ -1,67 +1,60 @@
 # AstroDB
 
-## Rough Product Description
+AstroDB is a set of Python tools to interact with a database of astronomical data.
+AstroDB uses the [astropy](http://www.astropy.org) Python module to read in data of astronomical objects from fits files, and store the object data in MongoDB.
+Once the database is populated with data, more data can be added either as an additional and independent object, or as more information on existing data (using [coordinate matching](http://docs.astropy.org/en/stable/coordinates/) to determine related object data).
 
-**Requirements**
-* Include all available multi wavelength catalogs for the COSMOS and CANDELS (includes a portion of COSMOS, GOODS-N, GOODS-S, EGS, and UDS) fields
-* Include optical, near-infrared, radio, Xray, etc.
-  * includes photometric measurements as well as derived quantities (such as mass, photometric redshift, star formation rate, etc.)
-* Include all available spectroscopic redshifts (and quality flags)
-* Cross-match between catalogs to find ‘best’ counterparts for each source
-* Allow user to find all sources within some specified radius
-* Enable new datasets to be easily added over time
-* Documentation
 
-**Enhancements (optional)**    
-* Potentially include postage stamp images
-* Potentially include actual spectra, spectral line fits
-* SED fits (image file)
-* Morphological classifications
-* Basic website as interface?
+## Table of Contents
 
-## General Knowledge
+* [Installation](#installation)
+* [Usage](#usage)
+* [Contributing](#contributing)
+* [Credits](#credits)
+* [License](#license)
 
-Test data: `COSMOS2015_Laigle+.fits.gz` from `ftp://ftp.iap.fr/pub/from_users/hjmcc/COSMOS2015`,
-and some CANDELS data (fits files stored in a shared Google Drive folder).
+## Installation
 
-AstroPy tutorials can be found [here](http://www.astropy.org/astropy-tutorials/FITS-tables.html).
+For more detailed information, see [wiki/Installation](https://github.com/JHaller27/astrodb/wiki/Installation).
 
-Also of interest: [AstroPy coordinate tutorial](http://docs.astropy.org/en/stable/coordinates/).
+**Quick Start**
 
-Using [Google Sheet](https://docs.google.com/spreadsheets/d/1EYDZTCAMssnQXcbRf49nZOhDgYF5AcsNECnIOVaHyZ8/edit?usp=sharing)
-to visualize data.
+1. Clone or download the source code in this repository.
+1. Setup a virtual environment using Python3.7.
+1. Install requirements (in `requirements.txt`) with pip.
 
-## Setup
-Set up using a virtual environment...
+## Usage
 
-  `astrodb$ python3.7 -m venv venv; ln -s venv/bin/activate activate`
+For more detailed information, see [wiki/Usage](https://github.com/JHaller27/astrodb/wiki/Usage).
 
-While working with astrodb, make sure to first run the following command to activate the virtual environment...
+**Useful Commands**
 
-  `astrodb$ . ./activate`
+* `astrodb$ . activate`
+  * Every AstroDB session should begin with this command (if using a venv)
+* `astrodb$ . deactivate`
+  * This should happen automatically when you close the terminal, but it's useful to know if you want to continue coding in Python after running an AstroDB script.
+* `astrodb/src$ ./<astrodb-tool>.py` or `astrodb/src$ python <astrodb-tool>.py` to run a script if using a venv.
+* `astrodb/src$ python3.7 <astrodb-tool>.py` to run a script if not using a venv.
 
-To exit the venv, use `astrodb$ deactivate`
-(this happens automatically when the terminal is closed).
 
-Install prerequisite packages with...
+## Contributing
 
-  `pip install -r requirements.txt`
+If you're thinking about contributing to this project, chances are that I am no longer mainting this project.
+It is recommended that you fork this repository on GitHub and maintain your own version.
 
-### Binary Table Data Format
+Note: If installing or using third-party python modules not already included in `requirements.txt`, export all dependencies to requirements file with `pip freeze > requirements.txt`. Do this ONLY if using a venv.
 
-| FITS format code        | Description                    | 8-bit bytes |
-|:------------------------|:-------------------------------|:------------|
-| L                       | logical (Boolean)              | 1           |
-| X                       | bit                            | *           |
-| B                       | Unsigned byte                  | 1           |
-| I                       | 16-bit integer                 | 2           |
-| J                       | 32-bit integer                 | 4           |
-| K                       | 64-bit integer                 | 4           |
-| A                       | character                      | 1           |
-| E                       | single precision floating point| 4           |
-| D                       | double precision floating point| 8           |
-| C                       | single precision complex       | 8           |
-| M                       | double precision complex       | 16          |
-| P                       | array descriptor               | 8           |
-| Q                       | array descriptor               | 16          |
+For more legal information on contributing see [license](#license).
+
+
+## Credits
+
+Credit for the concept and requirements goes to Dr. Jeyhan Kartaltepe (Rochester Institute of Technology).
+
+Credit for development goes to me (James Haller, Rochester Institute of Technology).
+
+
+## License
+
+See separate [LICENSE](/LICENSE) file.
 
