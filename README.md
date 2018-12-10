@@ -15,15 +15,13 @@ Once the database is populated with data, more data can be added either as an ad
 
 ## Installation
 
+For more detailed information, see [wiki/Installation](wiki/Installation).
+
 **Quick Start**
 
 1. Clone or download the source code in this repository.
 1. Setup a virtual environment using Python3.7
 1. Install requirements (in `requirements.txt`) with pip
-
-**Detailed Instructions**
-
-* [wiki/Installation](wiki/Installation)
 
 ## Usage
 
