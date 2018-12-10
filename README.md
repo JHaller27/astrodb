@@ -39,7 +39,7 @@ For more detailed information, see [wiki/Usage](https://github.com/JHaller27/ast
 
 ## Contributing
 
-If you're thinking about contributing to this project, chances are that I am no longer mainting this project.
+If you're thinking about contributing to this project, chances are that I am no longer maintaining this project.
 It is recommended that you fork this repository on GitHub and maintain your own version.
 
 Note: If installing or using third-party python modules not already included in `requirements.txt`, export all dependencies to requirements file with `pip freeze > requirements.txt`. Do this ONLY if using a venv.
