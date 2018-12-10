@@ -15,7 +15,7 @@ Once the database is populated with data, more data can be added either as an ad
 
 ## Installation
 
-For more detailed information, see [wiki/Installation](wiki/Installation).
+For more detailed information, see [wiki/Installation](https://github.com/JHaller27/astrodb/wiki/Installation).
 
 **Quick Start**
 
@@ -25,7 +25,7 @@ For more detailed information, see [wiki/Installation](wiki/Installation).
 
 ## Usage
 
-For more detailed information, see [wiki/Usage](/wiki/Usage).
+For more detailed information, see [wiki/Usage](https://github.com/JHaller27/astrodb/wiki/Usage).
 
 **Useful Commands**
 
