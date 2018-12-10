@@ -13,87 +13,38 @@ Once the database is populated with data, more data can be added either as an ad
 * [Credits](#credits)
 * [License](#license)
 
-* Rough Product Description
-* General Knowledge
-
-
-
 ## Installation
 
-### AstroDB
+**Quick Start**
 
-There are two main ways to setup AstroDB: using a virtual environment or using a global environment.
-In either case, the first step is to clone this repository or download the source code.
+1. Clone or download the source code in this repository.
+1. Setup a virtual environment using Python3.7
+1. Install requirements (in `requirements.txt`) with pip
 
-You can place the files in any directory you want. These instructions will assume the directory is named `astrodb`.
+**Detailed Instructions**
 
-All command line instructions in this file follow the form `<path>$ <command>`. `<path>` often will begin with `astrodb`
-indicating the astrodb directory; make sure you are in this directory (or in the specified subdirectory).
-If `<path>` is missing, then the location in which the command does not matter.
-The `command` part is the text that should be entered into the console.
-
-### Virtual Environment
-
-_Recommended_
-
-**Why use a virtual environment?**
-
-A Python virtual environment ("venv") ensures the project's dependencies and requirements are managed independently.
-If a required package's version changes in a way that is required for another project but that breaks AstroDB, a venv will ensure that AstroDB is unaffected by these sorts of issues.
-
-**Virutal environment setup**
-
-From the `astrodb` directory, run...
-
-  `astrodb$ python3.7 -m venv venv && ln -s venv/bin/activate activate && . activate`
-
-Install prerequisite packages with...
-
-  `astrodb$ pip install -r requirements.txt`
-
-
-### Global Environment
-
-In a global environment, all modules installed via pip will be available to ALL python projects.
-When modules are thus updated, ALL python projects relying on those modules will use the new version.
-If you are new to python, this approach is easier to understand.
-
-**Global environment setup**
-
-Install prerequisite packages with...
-
-  `$ pip3 install -r requirements.txt`
-
+* [wiki/Installation](wiki/Installation)
 
 ## Usage
 
-### With a Virtual Environment setup
+For more detailed information, see [wiki/Usage](/wiki/Usage).
 
-Whenever running a tool in AstroDB via command line, make sure to first run the following command to activate the virtual environment...
+**Useful Commands**
 
-  `astrodb$ . activate`
-
-To exit the venv, use...
-
-  `astrodb$ deactivate`
-
-(this also happens automatically when the terminal is closed).
-
-To run a tool, use...
-
-  `astrodb/src$ ./<astrodb-tool>.py` or `astrodb/src$ python <astrodb-tool>.py`
-
-### With a Global Environement setup
-
-To run a tool, use...
-
-  `astrodb/src$ python3.7 <astrodb-tool>.py`
+* `astrodb$ . activate`
+  * Every AstroDB session should begin with this command (if using a venv)
+* `astrodb$ . deactivate`
+  * This should happen automatically when you close the terminal, but it's useful to know if you want to continue coding in Python after running an AstroDB script.
+* `astrodb/src$ ./<astrodb-tool>.py` or `astrodb/src$ python <astrodb-tool>.py` to run a script if using a venv.
+* `astrodb/src$ python3.7 <astrodb-tool>.py` to run a script if not using a venv.
 
 
 ## Contributing
 
 If you're thinking about contributing to this project, chances are that I am no longer mainting this project.
 It is recommended that you fork this repository on GitHub and maintain your own version.
+
+Note: If installing or using third-party python modules not already included in `requirements.txt`, export all dependencies to requirements file with `pip freeze > requirements.txt`. Do this ONLY if using a venv.
 
 For more legal information on contributing see [license](#license).
 
@@ -108,57 +59,4 @@ Credit for development goes to me (James Haller, Rochester Institute of Technolo
 ## License
 
 See separate [LICENSE](/LICENSE) file.
-
------
-
-**The following sections will eventually be moved to the GitHub wiki**
-
-## Rough Product Description
-
-**Requirements**
-* Include all available multi wavelength catalogs for the COSMOS and CANDELS (includes a portion of COSMOS, GOODS-N, GOODS-S, EGS, and UDS) fields
-* Include optical, near-infrared, radio, Xray, etc.
-  * includes photometric measurements as well as derived quantities (such as mass, photometric redshift, star formation rate, etc.)
-* Include all available spectroscopic redshifts (and quality flags)
-* Cross-match between catalogs to find ‘best’ counterparts for each source
-* Allow user to find all sources within some specified radius
-* Enable new datasets to be easily added over time
-* Documentation
-
-**Enhancements (optional)**    
-* Potentially include postage stamp images
-* Potentially include actual spectra, spectral line fits
-* SED fits (image file)
-* Morphological classifications
-* Basic website as interface?
-
-## General Knowledge
-
-Test data: `COSMOS2015_Laigle+.fits.gz` from `ftp://ftp.iap.fr/pub/from_users/hjmcc/COSMOS2015`,
-and some CANDELS data (fits files stored in a shared Google Drive folder).
-
-AstroPy tutorials can be found [here](http://www.astropy.org/astropy-tutorials/FITS-tables.html).
-
-Also of interest: [AstroPy coordinate tutorial](http://docs.astropy.org/en/stable/coordinates/).
-
-Using [Google Sheet](https://docs.google.com/spreadsheets/d/1EYDZTCAMssnQXcbRf49nZOhDgYF5AcsNECnIOVaHyZ8/edit?usp=sharing)
-to visualize data.
-
-### Binary Table Data Format
-
-| FITS format code        | Description                    | 8-bit bytes |
-|:------------------------|:-------------------------------|:------------|
-| L                       | logical (Boolean)              | 1           |
-| X                       | bit                            | *           |
-| B                       | Unsigned byte                  | 1           |
-| I                       | 16-bit integer                 | 2           |
-| J                       | 32-bit integer                 | 4           |
-| K                       | 64-bit integer                 | 4           |
-| A                       | character                      | 1           |
-| E                       | single precision floating point| 4           |
-| D                       | double precision floating point| 8           |
-| C                       | single precision complex       | 8           |
-| M                       | double precision complex       | 16          |
-| P                       | array descriptor               | 8           |
-| Q                       | array descriptor               | 16          |
 
