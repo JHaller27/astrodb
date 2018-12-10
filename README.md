@@ -20,8 +20,8 @@ For more detailed information, see [wiki/Installation](wiki/Installation).
 **Quick Start**
 
 1. Clone or download the source code in this repository.
-1. Setup a virtual environment using Python3.7
-1. Install requirements (in `requirements.txt`) with pip
+1. Setup a virtual environment using Python3.7.
+1. Install requirements (in `requirements.txt`) with pip.
 
 ## Usage
 
