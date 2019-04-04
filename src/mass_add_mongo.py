@@ -186,11 +186,11 @@ def upload_hdu_list(hdu_list: fits.HDUList,
     for r in hdu_record_list:
         record = generate_record(r, columns)
 
-        record_buffer.append(record)
+        append_record(record, record_buffer)
 
         # Write chunk of records to database
         if 0 < buffer_size <= len(record_buffer):
-            tmp_count = insert_records(collection, record_buffer)
+            tmp_count = insert_record_list(record_buffer, collection)
             inserted_record_count += tmp_count
             log.info("\tProgress {}/{} ({:.2f}%)".format(
                 inserted_record_count, len(hdu_record_list),
@@ -203,6 +203,42 @@ def upload_hdu_list(hdu_list: fits.HDUList,
     log.info("All %d/%d records uploaded!" % (inserted_record_count, len(hdu_record_list)))
 
     return inserted_record_count
+
+
+def append_record(record: dict, list_of_records: list) -> None:
+    """
+    Append a record to a list of records, merging new record with existing records in the list
+    using astropy coordinate matching
+    :param record: Record to insert
+    :param list_of_records: List to insert record into
+    """
+    # TODO Coordinate matching
+    list_of_records.append(record)
+
+
+def insert_record_list(list_of_records: list, collection: pymongo.collection) -> int:
+    """
+    Insert all records in a list into a pymongo collection, merging records with records in the
+    collection using astropy coordinate matching
+    :param list_of_records:
+    :param collection:
+    :return: count of records inserted
+    """
+    # TODO Coordinate matching
+    inserted_count = insert_records(collection, list_of_records)
+    return inserted_count
+
+
+def should_merge_by_distance(rec1: dict, rec2: dict, threshold: int = -1) -> bool:
+    """
+    Compare two records by distance
+    :param rec1: first record
+    :param rec2: second record
+    :param threshold: two records should be merged if their distance is
+                      less than or equal to threshold
+    :return: True if records are close enough to be merged, False otherwise
+    """
+    return False
 
 
 # Main processing
