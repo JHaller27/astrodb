@@ -241,6 +241,18 @@ def should_merge_by_distance(rec1: dict, rec2: dict, threshold: int = -1) -> boo
     return False
 
 
+def merge_records(rec1: dict, rec2: dict, suffix1: str, suffix2: str) -> dict:
+    """
+    Merge two records, handling duplicate keys by appending a suffix
+    :param rec1: first record
+    :param rec2: second record
+    :param suffix1: suffix to add to keys from rec1
+    :param suffix2: suffix to add to keys from rec2
+    :return: merged record
+    """
+    return {}
+
+
 # Main processing
 # =========================================================
 
