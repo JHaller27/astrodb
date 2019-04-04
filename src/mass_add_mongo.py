@@ -212,7 +212,15 @@ def append_record(record: dict, list_of_records: list) -> None:
     :param record: Record to insert
     :param list_of_records: List to insert record into
     """
-    # TODO Coordinate matching
+
+    # If record should be merged, then merge record with matching record
+    for existing_record in list_of_records:
+        if should_merge_by_distance(record, existing_record, 0):
+            record = merge_records(record, existing_record, "rec1", "rec2")
+            list_of_records.remove(existing_record)
+            break
+
+    # Insert the new (possibly merged) record
     list_of_records.append(record)
 
 
