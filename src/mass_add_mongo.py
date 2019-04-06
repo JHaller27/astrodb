@@ -1,14 +1,15 @@
 #!../venv/bin/python
 
 from astropy.io import fits
+from astropy import units as u
+from astropy.coordinates import *
 import argparse
 import pymongo
 import logging
 
 LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
 
-MONGO_MAX_INT = 2**(8*8)  # Max supported int size
-
+MONGO_MAX_INT = 2 ** (8 * 8)  # Max supported int size
 
 # Setup logging
 # =========================================================
@@ -54,8 +55,8 @@ def open_fits(fname: str) -> fits.HDUList:
 def get_collection(
         coll_name: str,
         db_name: str,
-        db_uri: str=LOCAL_MONGO_URI,
-        drop: bool=False) -> pymongo.collection:
+        db_uri: str = LOCAL_MONGO_URI,
+        drop: bool = False) -> pymongo.collection:
     """
     Get MongoDB collection matching the parameters
     :param coll_name: Name of MongoDB collection
@@ -81,6 +82,9 @@ def get_collection(
         return coll
     except pymongo.errors.ConfigurationError:
         log.error("Could not connect to URI '%s'" % db_uri)
+        exit(1)
+    except Exception as e:
+        log.error(e)
         exit(1)
 
 
@@ -176,7 +180,7 @@ def upload_hdu_list(hdu_list: fits.HDUList,
                        converted.
     :return: Number of records successfully written
     """
-    record_buffer = []    # List of records (as dicts)
+    record_buffer = []  # List of records (as dicts)
     inserted_record_count = 0  # Total number of records inserted thus far
 
     columns = get_fits_columns(hdu_list)
@@ -194,12 +198,12 @@ def upload_hdu_list(hdu_list: fits.HDUList,
             inserted_record_count += tmp_count
             log.info("\tProgress {}/{} ({:.2f}%)".format(
                 inserted_record_count, len(hdu_record_list),
-                (inserted_record_count*100) / len(hdu_record_list)
+                (inserted_record_count * buffer_size) / len(hdu_record_list)
             ))
             record_buffer = []
 
     # Upload remaining records
-    inserted_record_count += insert_records(collection, record_buffer)
+    inserted_record_count += insert_record_list(record_buffer, collection)
     log.info("All %d/%d records uploaded!" % (inserted_record_count, len(hdu_record_list)))
 
     return inserted_record_count
@@ -224,7 +228,7 @@ def append_record(record: dict, list_of_records: list) -> None:
     list_of_records.append(record)
 
 
-def insert_record_list(list_of_records: list, collection: pymongo.collection) -> int:
+def insert_record_list(list_of_records: list, collection: pymongo.collection, threshold: float = 0) -> int:
     """
     Insert all records in a list into a pymongo collection, merging records with records in the
     collection using astropy coordinate matching
@@ -232,42 +236,88 @@ def insert_record_list(list_of_records: list, collection: pymongo.collection) ->
     :param collection:
     :return: count of records inserted
     """
-    # TODO Coordinate matching
+    for new_record in list_of_records:
+        # *_bounds = (<lower bound>, <upper bound>)
+        ra_bounds = (new_record["RA"] - threshold, new_record["RA"] + threshold)
+        dec_bounds = (new_record["DEC"] - threshold, new_record["DEC"] + threshold)
+        query = {"RA": {"$gte": ra_bounds[0], "$lte": ra_bounds[1]},
+                 "DEC": {"$gte": dec_bounds[0], "$lte": dec_bounds[1]}
+                 }
+        for existing_record in collection.find(query):
+            if should_merge_by_distance(new_record, existing_record):
+                log.info("Merging records")
+                merged_record = merge_records(new_record, existing_record, "_rec1", "_rec2")
+
+                collection.remove(existing_record)
+
+                list_of_records.remove(new_record)
+                list_of_records.append(merged_record)
+
     inserted_count = insert_records(collection, list_of_records)
     return inserted_count
 
 
-def should_merge_by_distance(rec1: dict, rec2: dict, threshold: int = -1) -> bool:
+def should_merge_by_distance(rec1: dict, rec2: dict, threshold: float = 0) -> bool:
     """
     Compare two records by distance
     :param rec1: first record
     :param rec2: second record
     :param threshold: two records should be merged if their distance is
-                      less than or equal to threshold
+                      less than the threshold
     :return: True if records are close enough to be merged, False otherwise
     """
-    return False
+    coords1 = SkyCoord(ra=rec1["RA"] * u.degree, dec=rec1["DEC"] * u.degree, distance=1, frame="icrs")
+    coords2 = SkyCoord(ra=rec2["RA"] * u.degree, dec=rec2["DEC"] * u.degree, distance=1, frame="icrs")
+    sep = coords1.separation(coords2)
+    log.debug("\tSeparation = {}".format(sep))
+    return sep.is_within_bounds(None, threshold * u.degree)
 
 
-def merge_records(rec1: dict, rec2: dict, suffix1: str, suffix2: str) -> dict:
+def merge_records(rec1: dict, rec2: dict,
+                  suffix1: str, suffix2: str,
+                  ra_key: str = "RA", dec_key: str = "DEC") -> dict:
     """
     Merge two records, handling duplicate keys by appending a suffix
     :param rec1: first record
     :param rec2: second record
-    :param suffix1: suffix to add to keys from rec1
+    :param suffix1: suffix to add to keys from rec1 (coordinates used as masters)
     :param suffix2: suffix to add to keys from rec2
+    :param ra_key: master key to use as RA coordinate
+    :param dec_key: master key to use as DEC coordinate
     :return: merged record
     """
-    return {}
+    keys1 = set(rec1.keys())
+    keys2 = set(rec2.keys())
+    dupes = keys1.intersection(keys2)
+    uniques = keys1.union(keys2).difference(dupes)
+
+    new_rec = {}
+    for k in uniques:
+        new_rec[k] = rec1[k] if k in rec1 else rec2[k]
+    for k in dupes:
+        k1 = "%s_%s" % (k, suffix1)
+        k2 = "%s_%s" % (k, suffix2)
+
+        new_rec[k1] = rec1[k]
+        new_rec[k2] = rec2[k]
+
+    if ra_key in dupes:
+        new_rec[ra_key] = rec1[ra_key]
+    if "DEC" in dupes:
+        new_rec[dec_key] = rec1[dec_key]
+
+    return new_rec
 
 
 # Main processing
 # =========================================================
 
 def main(fits_path: str,
-         coll_name: str, db_name: str, db_uri: str=LOCAL_MONGO_URI):
+         buffer_size: int,
+         coll_name: str, db_name: str, db_uri: str = LOCAL_MONGO_URI):
     """
     Open a fits file, read all records, and write to database in chunks
+    :param buffer_size: number of records to write to database at a time
     :param fits_path: path to a fits file
     :param coll_name: Name of MongoDB collection
     :param db_name: Name of MongoDB database
@@ -277,7 +327,7 @@ def main(fits_path: str,
     with open_fits(fname=fits_path) as hdu_table:
         collection = get_collection(coll_name, db_name, db_uri, drop=True)
 
-        record_count = upload_hdu_list(hdu_table, collection, buffer_size=100)
+        record_count = upload_hdu_list(hdu_table, collection, buffer_size=buffer_size)
 
         log.info('Done!')
 
@@ -292,9 +342,9 @@ if __name__ == '__main__':
                         default=LOCAL_MONGO_URI)
     parser.add_argument('-d', '--db', help='MongoDB database name')
     parser.add_argument('-c', '--coll', help='MongoDB collection name')
-    parser.add_argument('-b', '--buffer', help='Size of buffer of ready-to-upload records')
+    parser.add_argument('-b', '--buffer', type=int, help='Size of buffer of ready-to-upload records')
 
     args = parser.parse_args()
 
-    main(fits_path=args.path_to_fits,
+    main(fits_path=args.path_to_fits, buffer_size=args.buffer,
          coll_name=args.coll, db_name=args.db, db_uri=args.uri)
