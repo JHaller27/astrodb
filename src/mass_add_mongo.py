@@ -21,6 +21,8 @@ SOURCE_KEY = "source"
 
 COORDS_KEY = "coords"
 
+total_record_count = 0
+
 # Setup logging
 # =========================================================
 
@@ -173,7 +175,7 @@ def upload_hdu_list(hdu_list: fits.HDUList,
     :param collection: Mongo collection to insert into
     :return: Number of records successfully written
     """
-    global args
+    global args, total_record_count
 
     record_buffer = []  # List of records (as dicts)
     inserted_record_count = 0  # Total number of records inserted thus far
@@ -182,6 +184,7 @@ def upload_hdu_list(hdu_list: fits.HDUList,
 
     log.info('Generating records... ')
     hdu_record_list = hdu_records(hdu_list)
+    total_record_count = len(hdu_record_list)
     for r in hdu_record_list:
         record = generate_record(r, columns)
 
@@ -194,8 +197,8 @@ def upload_hdu_list(hdu_list: fits.HDUList,
             tmp_count = insert_record_list(record_buffer, collection, args.sep)
             inserted_record_count += tmp_count
             log.info("\tProgress {}/{} ({:.2f}%)".format(
-                inserted_record_count, len(hdu_record_list),
-                (inserted_record_count * 100) / len(hdu_record_list)
+                inserted_record_count, total_record_count,
+                (inserted_record_count * 100) / total_record_count
             ))
             record_buffer = []
 
@@ -204,7 +207,7 @@ def upload_hdu_list(hdu_list: fits.HDUList,
 
     # Upload remaining records
     inserted_record_count += insert_record_list(record_buffer, collection, args.sep)
-    log.info("All %d/%d records uploaded!" % (inserted_record_count, len(hdu_record_list)))
+    log.info("All %d/%d records uploaded!" % (inserted_record_count, total_record_count))
 
     return inserted_record_count
 
@@ -309,6 +312,8 @@ def merge_records(rec1: dict, rec2: dict) -> dict:
     :param rec2: second record
     :return: merged record
     """
+    global total_record_count
+
     log.info("Merging records")
 
     new_rec = {
@@ -324,6 +329,8 @@ def merge_records(rec1: dict, rec2: dict) -> dict:
             }
         }
     }
+
+    total_record_count -= 1
 
     return new_rec
 
