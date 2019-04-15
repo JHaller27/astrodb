@@ -15,7 +15,9 @@ LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
 
 MONGO_MAX_INT = 2 ** (8 * 8)  # Max supported int size
 
-SOURCES_KEY = "sources"
+DATA_KEY = "data"
+
+SOURCE_KEY = "source"
 
 COORDS_KEY = "coords"
 
@@ -115,8 +117,8 @@ def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
     """
     global args
 
+    record_data = {SOURCE_KEY: args.path_to_fits.split(os_path_sep)[-1]}
     coords = {"ra": {"min": None, "max": None}, "dec": {"min": None, "max": None}}
-    record_data = {}
     for c in cols:
         # record[c.name] = {"value": rec[c.name], "unit": c.unit}
         record_data[c.name] = rec[c.name].item()
@@ -132,8 +134,7 @@ def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
             if coords["dec"]["max"] is None or rec[c.name] > coords["dec"]["max"]:
                 coords["dec"]["max"] = rec[c.name]
 
-    src = args.path_to_fits.split(os_path_sep)[-1].replace(".", "_")
-    return {SOURCES_KEY: [src], src: record_data, COORDS_KEY: coords}
+    return {DATA_KEY: [record_data], COORDS_KEY: coords}
 
 
 def get_fits_columns(hdu_list: fits.HDUList) -> fits.ColDefs:
@@ -238,6 +239,7 @@ def insert_record_list(list_of_records: list, collection: pymongo.collection,
     :param threshold:
     :return: count of records inserted
     """
+    final_record_list = []
     for new_record in list_of_records:
         # Generate mongo query to find objects whose coordinates are within the
         #    bounds of the threshold (a square area)
@@ -264,14 +266,13 @@ def insert_record_list(list_of_records: list, collection: pymongo.collection,
         #   (since threshold is radius, not the length of a square)
         for existing_record in collection.find(query):
             if should_merge_by_distance(new_record, existing_record, threshold):
-                merged_record = merge_records(new_record, existing_record)
+                new_record = merge_records(new_record, existing_record)
 
-                collection.remove(existing_record)
+                collection.delete_one(existing_record)
 
-                list_of_records.remove(new_record)
-                list_of_records.append(merged_record)
+        final_record_list.append(new_record)
 
-    inserted_count = insert_records(collection, list_of_records)
+    inserted_count = insert_records(collection, final_record_list)
     return inserted_count
 
 
@@ -310,35 +311,20 @@ def merge_records(rec1: dict, rec2: dict) -> dict:
     """
     log.info("Merging records")
 
-    coords = {"ra": {"min": None, "max": None}, "dec": {"min": None, "max": None}}
-    new_rec = {SOURCES_KEY: []}
-    for src in rec1[SOURCES_KEY]:
-        new_rec[SOURCES_KEY].append(src)
-        new_rec[src] = rec1[src]
+    new_rec = {
+        DATA_KEY: rec1[DATA_KEY] + rec2[DATA_KEY],
+        COORDS_KEY: {
+            "ra": {
+                "min": min(rec1[COORDS_KEY]["ra"]["min"], rec2[COORDS_KEY]["ra"]["min"]),
+                "max": min(rec1[COORDS_KEY]["ra"]["max"], rec2[COORDS_KEY]["ra"]["max"]),
+            },
+            "dec": {
+                "min": min(rec1[COORDS_KEY]["dec"]["min"], rec2[COORDS_KEY]["dec"]["min"]),
+                "max": min(rec1[COORDS_KEY]["dec"]["max"], rec2[COORDS_KEY]["dec"]["max"]),
+            }
+        }
+    }
 
-        if coords["ra"]["min"] is None or rec1[src]["RA"] < coords["ra"]["min"]:
-            coords["ra"]["min"] = rec1[src]["RA"]
-        if coords["ra"]["max"] is None or rec1[src]["RA"] > coords["ra"]["max"]:
-            coords["ra"]["max"] = rec1[src]["RA"]
-        if coords["dec"]["min"] is None or rec1[src]["DEC"] < coords["dec"]["min"]:
-            coords["dec"]["min"] = rec1[src]["DEC"]
-        if coords["dec"]["max"] is None or rec1[src]["DEC"] > coords["dec"]["max"]:
-            coords["dec"]["max"] = rec1[src]["DEC"]
-
-    for src in rec2[SOURCES_KEY]:
-        new_rec[SOURCES_KEY].append(src)
-        new_rec[src] = rec2[src]
-
-        if coords["ra"]["min"] is None or rec2[src]["RA"] < coords["ra"]["min"]:
-            coords["ra"]["min"] = rec2[src]["RA"]
-        if coords["ra"]["max"] is None or rec2[src]["RA"] > coords["ra"]["max"]:
-            coords["ra"]["max"] = rec2[src]["RA"]
-        if coords["dec"]["min"] is None or rec2[src]["DEC"] < coords["dec"]["min"]:
-            coords["dec"]["min"] = rec2[src]["DEC"]
-        if coords["dec"]["max"] is None or rec2[src]["DEC"] > coords["dec"]["max"]:
-            coords["dec"]["max"] = rec2[src]["DEC"]
-
-    new_rec[COORDS_KEY] = coords
     return new_rec
 
 
