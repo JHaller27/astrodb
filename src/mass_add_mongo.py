@@ -3,6 +3,7 @@
 from astropy.io import fits
 from astropy import units as u
 from astropy.coordinates import *
+from os import sep as os_path_sep
 import argparse
 import pymongo
 import logging
@@ -13,6 +14,8 @@ import logging
 LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
 
 MONGO_MAX_INT = 2 ** (8 * 8)  # Max supported int size
+
+SOURCES_KEY = "sources"
 
 # Setup logging
 # =========================================================
@@ -91,16 +94,16 @@ def get_collection(
         exit(1)
 
 
-def hdu_records(hdu_list: fits.HDUList) -> list:
+def hdu_records(hdu_list: fits.HDUList) -> fits.FITS_rec:
     """
     Generator function to yield each record in hdu_list
     :param hdu_list: HDUList object (containing data)
     :return: List of HDU records
     """
-    return list(hdu_list[1].data)
+    return hdu_list[1].data
 
 
-def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
+def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
     """
     Returns a single dict object based on FITS records and columns.
     :param rec: FITS record to convert
@@ -108,43 +111,26 @@ def generate_record(rec: fits.FITS_rec, cols: list) -> dict:
     :return: Dict object representing new record
              format: {<col1>: {'format':<format>, 'value':<value>}, <col2>: {...}, ...}
     """
-    rec = list(rec)
+    global args
 
-    record = {}
-    for i in range(len(cols)):
-        c = cols[i]
-        if c['name'].lower() == 'id':
-            record['_id'] = int(rec[i])
-        else:
-            # Try convert to float
-            try:
-                data = float(rec[i])
+    record_data = {}
+    for c in cols:
+        # record[c.name] = {"value": rec[c.name], "unit": c.unit}
+        record_data[c.name] = rec[c.name].item()
 
-                # MongoDB can only handle 8-byte ints
-                if data >= MONGO_MAX_INT:
-                    data = str(rec[i])
-            except ValueError:
-                # Try convert to int
-                try:
-                    data = int(rec[i])
-                except ValueError:
-                    # If all else fails, encode as string
-                    data = str(rec[i])
-            record[c['name']] = data
+    src = args.path_to_fits.split(os_path_sep)[-1].replace(".", "_")
 
-    return record
+    return {SOURCES_KEY: [src], src: record_data}
 
 
-def get_fits_columns(hdu_list: fits.HDUList) -> list:
+def get_fits_columns(hdu_list: fits.HDUList) -> fits.ColDefs:
     """
     Converts FITS columns to python "columns"
     :param hdu_list: HDUList object (containing columns)
     :return: Ordered list of dictionaries of the form
              {'name': <column-name>, 'format': <data-format-code>}
     """
-    cols = hdu_list[1].columns
-    log.info("File has %d columns" % len(cols))
-    return [{'name': c.name, 'format': str(c.format)} for c in cols]
+    return hdu_list[1].columns
 
 
 def insert_records(collection: pymongo.collection, record_list: list) -> int:
@@ -218,7 +204,7 @@ def append_record(record: dict, list_of_records: list) -> None:
     # If record should be merged, then merge record with matching record
     for existing_record in list_of_records:
         if should_merge_by_distance(record, existing_record, args.sep):
-            record = merge_records(record, existing_record, "rec1", "rec2")
+            record = merge_records(record, existing_record)
             list_of_records.remove(existing_record)
             break
 
@@ -241,8 +227,23 @@ def insert_record_list(list_of_records: list, collection: pymongo.collection,
         #    bounds of the threshold (a square area)
         #    (limits the number of comparisons while using actual coordinate matching)
         # *_bounds = (<lower bound>, <upper bound>)
-        ra_bounds = (new_record["RA"] - threshold, new_record["RA"] + threshold)
-        dec_bounds = (new_record["DEC"] - threshold, new_record["DEC"] + threshold)
+        min_ra, max_ra = None, None
+        min_dec, max_dec = None, None
+
+        for src in new_record[SOURCES_KEY]:
+            rec = new_record[src]
+
+            if min_ra is None or rec["RA"] < min_ra:
+                min_ra = rec["RA"]
+            if max_ra is None or rec["RA"] > max_ra:
+                max_ra = rec["RA"]
+            if min_dec is None or rec["DEC"] < min_dec:
+                min_dec = rec["DEC"]
+            if max_dec is None or rec["DEC"] > max_dec:
+                max_dec = rec["DEC"]
+
+        ra_bounds = (min_ra - threshold, max_ra + threshold)
+        dec_bounds = (min_dec - threshold, max_dec + threshold)
         query = {"RA": {"$gte": ra_bounds[0], "$lte": ra_bounds[1]},
                  "DEC": {"$gte": dec_bounds[0], "$lte": dec_bounds[1]}
                  }
@@ -251,28 +252,49 @@ def insert_record_list(list_of_records: list, collection: pymongo.collection,
         #   (since threshold is radius, not the length of a square)
         for existing_record in collection.find(query):
             if should_merge_by_distance(new_record, existing_record, threshold):
-                merged_record = merge_records(new_record, existing_record, "_rec1", "_rec2")
+                merged_record = merge_records(new_record, existing_record)
 
                 collection.remove(existing_record)
 
                 list_of_records.remove(new_record)
                 list_of_records.append(merged_record)
 
-    inserted_count = len(list_of_records)  # insert_records(collection, list_of_records)
+    inserted_count = insert_records(collection, list_of_records)
     return inserted_count
 
 
 def should_merge_by_distance(rec1: dict, rec2: dict, threshold: float) -> bool:
     """
-    Compare two records by distance
+    Compare two records by distance between the centers of each record's objects
     :param rec1: first record
     :param rec2: second record
     :param threshold: two records should be merged if their distance is
                       less than the threshold
     :return: True if records are close enough to be merged, False otherwise
     """
-    coords1 = SkyCoord(ra=rec1["RA"] * u.degree, dec=rec1["DEC"] * u.degree, distance=1, frame="icrs")
-    coords2 = SkyCoord(ra=rec2["RA"] * u.degree, dec=rec2["DEC"] * u.degree, distance=1, frame="icrs")
+    avg_ra1 = 0
+    for src in rec1[SOURCES_KEY]:
+        avg_ra1 += rec1[src]["RA"]
+    avg_ra1 /= len(rec1[SOURCES_KEY])
+
+    avg_ra2 = 0
+    for src in rec2[SOURCES_KEY]:
+        avg_ra1 += rec2[src]["RA"]
+    avg_ra2 /= len(rec2[SOURCES_KEY])
+
+    avg_dec1 = 0
+    for src in rec1[SOURCES_KEY]:
+        avg_dec1 += rec1[src]["DEC"]
+    avg_dec1 /= len(rec1[SOURCES_KEY])
+
+    avg_dec2 = 0
+    for src in rec2[SOURCES_KEY]:
+        avg_dec1 += rec2[src]["DEC"]
+    avg_dec2 /= len(rec2[SOURCES_KEY])
+
+    coords1 = SkyCoord(ra=avg_ra1 * u.degree, dec=avg_dec1 * u.degree, distance=1, frame="icrs")
+    coords2 = SkyCoord(ra=avg_ra2 * u.degree, dec=avg_dec2 * u.degree, distance=1, frame="icrs")
+
     sep = coords1.separation(coords2)
     log.debug("\tSeparation = {:.2f} (<{:.2f}, {:.2f}>, <{:.2f}, {:.2f}>)".format(
         sep.to(u.arcsec),
@@ -282,40 +304,22 @@ def should_merge_by_distance(rec1: dict, rec2: dict, threshold: float) -> bool:
     return sep.is_within_bounds(-threshold * u.arcsec, threshold * u.arcsec)
 
 
-def merge_records(rec1: dict, rec2: dict,
-                  suffix1: str, suffix2: str,
-                  ra_key: str = "RA", dec_key: str = "DEC") -> dict:
+def merge_records(rec1: dict, rec2: dict) -> dict:
     """
     Merge two records, handling duplicate keys by appending a suffix
     :param rec1: first record
     :param rec2: second record
-    :param suffix1: suffix to add to keys from rec1 (coordinates used as masters)
-    :param suffix2: suffix to add to keys from rec2
-    :param ra_key: master key to use as RA coordinate
-    :param dec_key: master key to use as DEC coordinate
     :return: merged record
     """
     log.info("Merging records")
 
-    keys1 = set(rec1.keys())
-    keys2 = set(rec2.keys())
-    dupes = keys1.intersection(keys2)
-    uniques = keys1.union(keys2).difference(dupes)
-
-    new_rec = {}
-    for k in uniques:
-        new_rec[k] = rec1[k] if k in rec1 else rec2[k]
-    for k in dupes:
-        k1 = "%s_%s" % (k, suffix1)
-        k2 = "%s_%s" % (k, suffix2)
-
-        new_rec[k1] = rec1[k]
-        new_rec[k2] = rec2[k]
-
-    if ra_key in dupes:
-        new_rec[ra_key] = rec1[ra_key]
-    if "DEC" in dupes:
-        new_rec[dec_key] = rec1[dec_key]
+    new_rec = {SOURCES_KEY: []}
+    for src in rec1[SOURCES_KEY]:
+        new_rec[SOURCES_KEY].append(src)
+        new_rec[src] = rec1[src]
+    for src in rec2[SOURCES_KEY]:
+        new_rec[SOURCES_KEY].append(src)
+        new_rec[src] = rec2[src]
 
     return new_rec
 
