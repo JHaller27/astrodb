@@ -17,6 +17,8 @@ MONGO_MAX_INT = 2 ** (8 * 8)  # Max supported int size
 
 SOURCES_KEY = "sources"
 
+COORDS_KEY = "coords"
+
 # Setup logging
 # =========================================================
 
@@ -113,14 +115,25 @@ def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
     """
     global args
 
+    coords = {"ra": {"min": None, "max": None}, "dec": {"min": None, "max": None}}
     record_data = {}
     for c in cols:
         # record[c.name] = {"value": rec[c.name], "unit": c.unit}
         record_data[c.name] = rec[c.name].item()
 
-    src = args.path_to_fits.split(os_path_sep)[-1].replace(".", "_")
+        if c.name.lower() == "ra":
+            if coords["ra"]["min"] is None or rec[c.name] < coords["ra"]["min"]:
+                coords["ra"]["min"] = rec[c.name]
+            if coords["ra"]["max"] is None or rec[c.name] > coords["ra"]["max"]:
+                coords["ra"]["max"] = rec[c.name]
+        elif c.name.lower() == "dec":
+            if coords["dec"]["min"] is None or rec[c.name] < coords["dec"]["min"]:
+                coords["dec"]["min"] = rec[c.name]
+            if coords["dec"]["max"] is None or rec[c.name] > coords["dec"]["max"]:
+                coords["dec"]["max"] = rec[c.name]
 
-    return {SOURCES_KEY: [src], src: record_data}
+    src = args.path_to_fits.split(os_path_sep)[-1].replace(".", "_")
+    return {SOURCES_KEY: [src], src: record_data, COORDS_KEY: coords}
 
 
 def get_fits_columns(hdu_list: fits.HDUList) -> fits.ColDefs:
@@ -181,9 +194,12 @@ def upload_hdu_list(hdu_list: fits.HDUList,
             inserted_record_count += tmp_count
             log.info("\tProgress {}/{} ({:.2f}%)".format(
                 inserted_record_count, len(hdu_record_list),
-                (inserted_record_count * args.buffer) / len(hdu_record_list)
+                (inserted_record_count * 100) / len(hdu_record_list)
             ))
             record_buffer = []
+
+        if inserted_record_count >= 100:
+            return inserted_record_count
 
     # Upload remaining records
     inserted_record_count += insert_record_list(record_buffer, collection, args.sep)
@@ -226,27 +242,23 @@ def insert_record_list(list_of_records: list, collection: pymongo.collection,
         # Generate mongo query to find objects whose coordinates are within the
         #    bounds of the threshold (a square area)
         #    (limits the number of comparisons while using actual coordinate matching)
-        # *_bounds = (<lower bound>, <upper bound>)
-        min_ra, max_ra = None, None
-        min_dec, max_dec = None, None
+        ra_min = new_record[COORDS_KEY]["ra"]["min"] - threshold
+        ra_max = new_record[COORDS_KEY]["ra"]["max"] + threshold
+        dec_min = new_record[COORDS_KEY]["dec"]["min"] - threshold
+        dec_max = new_record[COORDS_KEY]["dec"]["max"] + threshold
 
-        for src in new_record[SOURCES_KEY]:
-            rec = new_record[src]
-
-            if min_ra is None or rec["RA"] < min_ra:
-                min_ra = rec["RA"]
-            if max_ra is None or rec["RA"] > max_ra:
-                max_ra = rec["RA"]
-            if min_dec is None or rec["DEC"] < min_dec:
-                min_dec = rec["DEC"]
-            if max_dec is None or rec["DEC"] > max_dec:
-                max_dec = rec["DEC"]
-
-        ra_bounds = (min_ra - threshold, max_ra + threshold)
-        dec_bounds = (min_dec - threshold, max_dec + threshold)
-        query = {"RA": {"$gte": ra_bounds[0], "$lte": ra_bounds[1]},
-                 "DEC": {"$gte": dec_bounds[0], "$lte": dec_bounds[1]}
-                 }
+        # ra_min - threshold <= avg_ra <= ra_max + threshold
+        # ra_min - threshold <= avg_ra and ra_max + threshold >= avg_ra
+        # query = {COORDS_KEY: {
+        #     "ra": {"min": {"$lte": avg_ra}, "max": {"$gte": avg_ra}},
+        #     "dec": {"min": {"$lte": avg_dec}, "max": {"$gte": avg_dec}}
+        # }}
+        query = {
+            "%s.%s.%s" % (COORDS_KEY, "ra", "min"): {"$lte": ra_max},
+            "%s.%s.%s" % (COORDS_KEY, "ra", "max"): {"$gte": ra_min},
+            "%s.%s.%s" % (COORDS_KEY, "dec", "min"): {"$lte": dec_max},
+            "%s.%s.%s" % (COORDS_KEY, "dec", "max"): {"$gte": dec_min}
+        }
 
         # Compare against existing records matching the query
         #   (since threshold is radius, not the length of a square)
@@ -272,28 +284,13 @@ def should_merge_by_distance(rec1: dict, rec2: dict, threshold: float) -> bool:
                       less than the threshold
     :return: True if records are close enough to be merged, False otherwise
     """
-    avg_ra1 = 0
-    for src in rec1[SOURCES_KEY]:
-        avg_ra1 += rec1[src]["RA"]
-    avg_ra1 /= len(rec1[SOURCES_KEY])
+    med_ra1 = (rec1[COORDS_KEY]["ra"]["min"] + rec1[COORDS_KEY]["ra"]["max"]) / 2
+    med_ra2 = (rec2[COORDS_KEY]["ra"]["min"] + rec2[COORDS_KEY]["ra"]["max"]) / 2
+    med_dec1 = (rec1[COORDS_KEY]["dec"]["min"] + rec1[COORDS_KEY]["dec"]["max"]) / 2
+    med_dec2 = (rec2[COORDS_KEY]["dec"]["min"] + rec2[COORDS_KEY]["dec"]["max"]) / 2
 
-    avg_ra2 = 0
-    for src in rec2[SOURCES_KEY]:
-        avg_ra2 += rec2[src]["RA"]
-    avg_ra2 /= len(rec2[SOURCES_KEY])
-
-    avg_dec1 = 0
-    for src in rec1[SOURCES_KEY]:
-        avg_dec1 += rec1[src]["DEC"]
-    avg_dec1 /= len(rec1[SOURCES_KEY])
-
-    avg_dec2 = 0
-    for src in rec2[SOURCES_KEY]:
-        avg_dec2 += rec2[src]["DEC"]
-    avg_dec2 /= len(rec2[SOURCES_KEY])
-
-    coords1 = SkyCoord(ra=avg_ra1 * u.degree, dec=avg_dec1 * u.degree, distance=1, frame="icrs")
-    coords2 = SkyCoord(ra=avg_ra2 * u.degree, dec=avg_dec2 * u.degree, distance=1, frame="icrs")
+    coords1 = SkyCoord(ra=med_ra1 * u.degree, dec=med_dec1 * u.degree, distance=1, frame="icrs")
+    coords2 = SkyCoord(ra=med_ra2 * u.degree, dec=med_dec2 * u.degree, distance=1, frame="icrs")
 
     sep = coords1.separation(coords2)
     log.debug("\tSeparation = {:.2f} (<{:.2f}, {:.2f}>, <{:.2f}, {:.2f}>)".format(
@@ -313,14 +310,35 @@ def merge_records(rec1: dict, rec2: dict) -> dict:
     """
     log.info("Merging records")
 
+    coords = {"ra": {"min": None, "max": None}, "dec": {"min": None, "max": None}}
     new_rec = {SOURCES_KEY: []}
     for src in rec1[SOURCES_KEY]:
         new_rec[SOURCES_KEY].append(src)
         new_rec[src] = rec1[src]
+
+        if coords["ra"]["min"] is None or rec1[src]["RA"] < coords["ra"]["min"]:
+            coords["ra"]["min"] = rec1[src]["RA"]
+        if coords["ra"]["max"] is None or rec1[src]["RA"] > coords["ra"]["max"]:
+            coords["ra"]["max"] = rec1[src]["RA"]
+        if coords["dec"]["min"] is None or rec1[src]["DEC"] < coords["dec"]["min"]:
+            coords["dec"]["min"] = rec1[src]["DEC"]
+        if coords["dec"]["max"] is None or rec1[src]["DEC"] > coords["dec"]["max"]:
+            coords["dec"]["max"] = rec1[src]["DEC"]
+
     for src in rec2[SOURCES_KEY]:
         new_rec[SOURCES_KEY].append(src)
         new_rec[src] = rec2[src]
 
+        if coords["ra"]["min"] is None or rec2[src]["RA"] < coords["ra"]["min"]:
+            coords["ra"]["min"] = rec2[src]["RA"]
+        if coords["ra"]["max"] is None or rec2[src]["RA"] > coords["ra"]["max"]:
+            coords["ra"]["max"] = rec2[src]["RA"]
+        if coords["dec"]["min"] is None or rec2[src]["DEC"] < coords["dec"]["min"]:
+            coords["dec"]["min"] = rec2[src]["DEC"]
+        if coords["dec"]["max"] is None or rec2[src]["DEC"] > coords["dec"]["max"]:
+            coords["dec"]["max"] = rec2[src]["DEC"]
+
+    new_rec[COORDS_KEY] = coords
     return new_rec
 
 
