@@ -7,6 +7,9 @@ import argparse
 import pymongo
 import logging
 
+# Constants and globals
+# =========================================================
+
 LOCAL_MONGO_URI = 'mongodb://localhost:27017/'
 
 MONGO_MAX_INT = 2 ** (8 * 8)  # Max supported int size
@@ -162,25 +165,16 @@ def insert_records(collection: pymongo.collection, record_list: list) -> int:
 
 
 def upload_hdu_list(hdu_list: fits.HDUList,
-                    collection: pymongo.collection,
-                    buffer_size: int, sep: float) -> int:
+                    collection: pymongo.collection) -> int:
     """
     Reads hdu_list, extracts data into dict "records", and
     uploads chunks of data to a mongo collection.
-    :param sep: separation threshold
     :param hdu_list: HDUList object from which to read
     :param collection: Mongo collection to insert into
-    :param buffer_size: (optional) Size of record buffer.
-                       When buffer is full, will flush to
-                       collection.
-                       <=0: upload all records only after
-                       all have been read.
-                       1: (default) upload every record
-                       after it is converted.
-                       X: upload after every X record is
-                       converted.
     :return: Number of records successfully written
     """
+    global args
+
     record_buffer = []  # List of records (as dicts)
     inserted_record_count = 0  # Total number of records inserted thus far
 
@@ -192,38 +186,38 @@ def upload_hdu_list(hdu_list: fits.HDUList,
         record = generate_record(r, columns)
 
         # Coordinate-matches within the buffer
-        append_record(record, record_buffer, sep)
+        append_record(record, record_buffer)
 
         # Write chunk of records to database
-        if 0 < buffer_size <= len(record_buffer):
+        if 0 < args.buffer <= len(record_buffer):
             # Coordinate-matches against database
-            tmp_count = insert_record_list(record_buffer, collection, sep)
+            tmp_count = insert_record_list(record_buffer, collection, args.sep)
             inserted_record_count += tmp_count
             log.info("\tProgress {}/{} ({:.2f}%)".format(
                 inserted_record_count, len(hdu_record_list),
-                (inserted_record_count * buffer_size) / len(hdu_record_list)
+                (inserted_record_count * args.buffer) / len(hdu_record_list)
             ))
             record_buffer = []
 
     # Upload remaining records
-    inserted_record_count += insert_record_list(record_buffer, collection, sep)
+    inserted_record_count += insert_record_list(record_buffer, collection, args.sep)
     log.info("All %d/%d records uploaded!" % (inserted_record_count, len(hdu_record_list)))
 
     return inserted_record_count
 
 
-def append_record(record: dict, list_of_records: list, sep: float) -> None:
+def append_record(record: dict, list_of_records: list) -> None:
     """
     Append a record to a list of records, merging new record with existing records in the list
     using astropy coordinate matching
     :param record: Record to insert
     :param list_of_records: List to insert record into
-    :param sep: Separation threshold
     """
+    global args
 
     # If record should be merged, then merge record with matching record
     for existing_record in list_of_records:
-        if should_merge_by_distance(record, existing_record, sep):
+        if should_merge_by_distance(record, existing_record, args.sep):
             record = merge_records(record, existing_record, "rec1", "rec2")
             list_of_records.remove(existing_record)
             break
@@ -329,41 +323,34 @@ def merge_records(rec1: dict, rec2: dict,
 # Main processing
 # =========================================================
 
-def main(fits_path: str, buffer_size: int, sep: float,
-         coll_name: str, db_name: str, db_uri: str = LOCAL_MONGO_URI):
+def main():
     """
     Open a fits file, read all records, and write to database in chunks
-    :param sep: separation threshold under which objects should be merged
-    :param buffer_size: number of records to write to database at a time
-    :param fits_path: path to a fits file
-    :param coll_name: Name of MongoDB collection
-    :param db_name: Name of MongoDB database
-    :param db_uri: URI of MongoDB to connect to
-                   Default: localhost mongodb
     """
-    with open_fits(fname=fits_path) as hdu_table:
-        collection = get_collection(coll_name, db_name, db_uri, drop=True)
+    global args
 
-        record_count = upload_hdu_list(hdu_table, collection, buffer_size=buffer_size, sep=sep)
+    with open_fits(fname=args.path_to_fits) as hdu_table:
+        collection = get_collection(args.coll, args.db, args.uri, drop=True)
+
+        record_count = upload_hdu_list(hdu_table, collection)
 
         log.info('Done!')
 
         log.info('Database successfully populated with {} records'.format(record_count))
 
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument('path_to_fits')
+parser.add_argument('-u', '--uri', help='MongoDB URI',
+                    default=LOCAL_MONGO_URI)
+parser.add_argument('-d', '--db', help='MongoDB database name')
+parser.add_argument('-c', '--coll', help='MongoDB collection name')
+parser.add_argument('-b', '--buffer', type=int, help='Size of buffer of ready-to-upload records')
+parser.add_argument('-s', '--sep', type=float, default=0.0,
+                    help='Separation threshold under which objects are considered the same\n(units: arcseconds)')
+
+args = parser.parse_args()
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('path_to_fits')
-    parser.add_argument('-u', '--uri', help='MongoDB URI',
-                        default=LOCAL_MONGO_URI)
-    parser.add_argument('-d', '--db', help='MongoDB database name')
-    parser.add_argument('-c', '--coll', help='MongoDB collection name')
-    parser.add_argument('-b', '--buffer', type=int, help='Size of buffer of ready-to-upload records')
-    parser.add_argument('-s', '--sep', type=float, default=0.0,
-                        help='Separation threshold under which objects are considered the same')
-
-    args = parser.parse_args()
-
-    main(fits_path=args.path_to_fits, buffer_size=args.buffer, sep=args.sep,
-         coll_name=args.coll, db_name=args.db, db_uri=args.uri)
+    main()
