@@ -279,7 +279,7 @@ def should_merge_by_distance(rec1: dict, rec2: dict, threshold: float) -> bool:
 
     avg_ra2 = 0
     for src in rec2[SOURCES_KEY]:
-        avg_ra1 += rec2[src]["RA"]
+        avg_ra2 += rec2[src]["RA"]
     avg_ra2 /= len(rec2[SOURCES_KEY])
 
     avg_dec1 = 0
@@ -289,7 +289,7 @@ def should_merge_by_distance(rec1: dict, rec2: dict, threshold: float) -> bool:
 
     avg_dec2 = 0
     for src in rec2[SOURCES_KEY]:
-        avg_dec1 += rec2[src]["DEC"]
+        avg_dec2 += rec2[src]["DEC"]
     avg_dec2 /= len(rec2[SOURCES_KEY])
 
     coords1 = SkyCoord(ra=avg_ra1 * u.degree, dec=avg_dec1 * u.degree, distance=1, frame="icrs")
