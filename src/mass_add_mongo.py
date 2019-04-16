@@ -252,12 +252,6 @@ def insert_record_list(list_of_records: list, collection: pymongo.collection,
         dec_min = new_record[COORDS_KEY]["dec"]["min"] - threshold
         dec_max = new_record[COORDS_KEY]["dec"]["max"] + threshold
 
-        # ra_min - threshold <= avg_ra <= ra_max + threshold
-        # ra_min - threshold <= avg_ra and ra_max + threshold >= avg_ra
-        # query = {COORDS_KEY: {
-        #     "ra": {"min": {"$lte": avg_ra}, "max": {"$gte": avg_ra}},
-        #     "dec": {"min": {"$lte": avg_dec}, "max": {"$gte": avg_dec}}
-        # }}
         query = {
             "%s.%s.%s" % (COORDS_KEY, "ra", "min"): {"$lte": ra_max},
             "%s.%s.%s" % (COORDS_KEY, "ra", "max"): {"$gte": ra_min},
@@ -364,6 +358,8 @@ parser.add_argument('-c', '--coll', help='MongoDB collection name')
 parser.add_argument('-b', '--buffer', type=int, help='Size of buffer of ready-to-upload records')
 parser.add_argument('-s', '--sep', type=float, default=0.0,
                     help='Separation threshold under which objects are considered the same\n(units: arcseconds)')
+parser.add_argument('-n', '--nodupes', action='store_true', help="Do not insert duplicate records "
+                                                                 "(records with the same source and ID)")
 
 args = parser.parse_args()
 
