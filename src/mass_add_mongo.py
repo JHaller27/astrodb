@@ -358,8 +358,6 @@ parser.add_argument('-c', '--coll', help='MongoDB collection name')
 parser.add_argument('-b', '--buffer', type=int, help='Size of buffer of ready-to-upload records')
 parser.add_argument('-s', '--sep', type=float, default=0.0,
                     help='Separation threshold under which objects are considered the same\n(units: arcseconds)')
-parser.add_argument('-n', '--nodupes', action='store_true', help="Do not insert duplicate records "
-                                                                 "(records with the same source and ID)")
 
 args = parser.parse_args()
 
