@@ -394,12 +394,12 @@ formats = [
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                  epilog="Valid options for FMT: "+(", ".join(formats)))
 
-parser.add_argument('path_to_fits')
+parser.add_argument('source_path')
 parser.add_argument('-u', '--uri', help='MongoDB URI',
                     default=LOCAL_MONGO_URI)
 parser.add_argument('-d', '--db', help='MongoDB database name')
 parser.add_argument('-c', '--coll', help='MongoDB collection name')
-parser.add_argument('-b', '--buffer', metavar="BUF", type=int, default=10,
+parser.add_argument('-b', '--buffer', metavar="BUF", type=int, default=1,
                     help='Size of buffer of records. Will upload to database when buffer is full. '
                          '(Useful if you notice a speed increase by buffering more or fewer records).')
 parser.add_argument('-s', '--sep', type=float, default=0.0,
