@@ -214,9 +214,6 @@ def upload_hdu_list(hdu_bin_table: fits.BinTableHDU,
             ))
             record_buffer = []
 
-        if inserted_record_count >= 100:
-            return inserted_record_count
-
     # Upload remaining records
     inserted_record_count += insert_record_list(record_buffer, collection, args.sep)
     log.info("All %d/%d records uploaded!" % (inserted_record_count, total_record_count))
