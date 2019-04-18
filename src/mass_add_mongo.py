@@ -141,12 +141,12 @@ def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
         except AttributeError:
             record_data[c.name] = rec[c.name]
 
-        if c.name.lower() == "ra":
+        if c.name == args.coords[0]:
             if coords["ra"]["min"] is None or rec[c.name] < coords["ra"]["min"]:
                 coords["ra"]["min"] = rec[c.name]
             if coords["ra"]["max"] is None or rec[c.name] > coords["ra"]["max"]:
                 coords["ra"]["max"] = rec[c.name]
-        elif c.name.lower() == "dec":
+        elif c.name == args.coords[1]:
             if coords["dec"]["min"] is None or rec[c.name] < coords["dec"]["min"]:
                 coords["dec"]["min"] = rec[c.name]
             if coords["dec"]["max"] is None or rec[c.name] > coords["dec"]["max"]:
@@ -368,6 +368,14 @@ def allow_escape_chars(s: str) -> str:
     return s.encode("utf-8").decode("unicode_escape")
 
 
+def coords_type(s: str) -> (str, str):
+    import re
+    coords = re.split(r"\s*(,\s*)|\s+", s)
+    if len(coords) != 3:
+        raise argparse.ArgumentError('Coords must be formatted as "<RA>, <DEC>"')
+    return coords[0], coords[2]
+
+
 formats = [
     "aastex",
     "basic",
@@ -410,6 +418,8 @@ parser.add_argument('-f', '--format', metavar="FMT", choices=formats, default="f
 parser.add_argument('--delim', type=allow_escape_chars, default=None,
                     help="Delimiter used when parsing ascii files. "
                          "If not specified, will use file-format default")
+parser.add_argument('--coords', type=coords_type, default="RA, DEC",
+                    help="Name of fields to use as coordinates.")
 
 args = parser.parse_args()
 
