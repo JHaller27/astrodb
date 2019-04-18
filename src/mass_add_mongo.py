@@ -348,17 +348,19 @@ def main():
         log.info('Database successfully populated with {} records'.format(record_count))
 
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('path_to_fits')
 parser.add_argument('-u', '--uri', help='MongoDB URI',
                     default=LOCAL_MONGO_URI)
 parser.add_argument('-d', '--db', help='MongoDB database name')
 parser.add_argument('-c', '--coll', help='MongoDB collection name')
-parser.add_argument('-b', '--buffer', type=int, help='Size of buffer of ready-to-upload records')
+parser.add_argument('-b', '--buffer', metavar="BUF", type=int, default=10,
+                    help='Size of buffer of records. Will upload to database when buffer is full. '
+                         '(Useful if you notice a speed increase by buffering more or fewer records).')
 parser.add_argument('-s', '--sep', type=float, default=0.0,
                     help='Separation threshold under which objects are considered the same\n(units: arcseconds)')
-parser.add_argument('--src', help="Optionally override file source for inserted records", default=None)
+parser.add_argument('--src', help="Optionally override file source for inserted records", required=False)
 
 args = parser.parse_args()
 
