@@ -47,22 +47,26 @@ log.addHandler(file_handler)
 # Process functions
 # =========================================================
 
-def get_table_from_file(fname: str, format: str) -> fits.BinTableHDU:
+def get_table_from_file(fname: str, format: str, delim=None) -> fits.BinTableHDU:
     """
     Open a .fits or ascii source file
     :param fname: path to source file
     :param format: file format
+    :param delim: delimiter for ascii file reading
     :return: An HDUList object
     """
     try:
         log.info("Opening '%s'" % fname)
         if format == "fits":
             return fits.open(fname, memmp=True)[1]
-        elif format == "guess":
-            data = ascii.read(fname)
-            return fits.BinTableHDU(data)
         else:
-            data = ascii.read(fname, format=format, delimiter="\t")
+            args = [fname]
+            kwargs = {}
+            if format != "guess":
+                kwargs["format"] = format
+            if delim is not None:
+                kwargs["delimiter"] = delim
+            data = ascii.read(*args, **kwargs)
             return fits.BinTableHDU(data)
     except FileNotFoundError:
         log.error("File not found!")
@@ -347,7 +351,7 @@ def main():
     """
     global args
 
-    hdu_bin_table = get_table_from_file(fname=args.path_to_fits, format=args.format)
+    hdu_bin_table = get_table_from_file(fname=args.path_to_fits, format=args.format, delim=args.delim)
     collection = get_collection(args.coll, args.db, args.uri)
 
     record_count = upload_hdu_list(hdu_bin_table, collection)
@@ -355,6 +359,13 @@ def main():
     log.info('Done!')
 
     log.info('Database successfully populated with {} records'.format(record_count))
+
+
+# Argument parsing
+# =========================================================
+
+def allow_escape_chars(s: str) -> str:
+    return s.encode("utf-8").decode("unicode_escape")
 
 
 formats = [
@@ -396,6 +407,9 @@ parser.add_argument('-s', '--sep', type=float, default=0.0,
 parser.add_argument('--src', help="Optionally override file source for inserted records", required=False)
 parser.add_argument('-f', '--format', metavar="FMT", choices=formats, default="fits",
                     help="Format of source file (fits or an ascii format)")
+parser.add_argument('--delim', type=allow_escape_chars, default=None,
+                    help="Delimiter used when parsing ascii files. "
+                         "If not specified, will use file-format default")
 
 args = parser.parse_args()
 
