@@ -351,7 +351,7 @@ def main():
     """
     global args
 
-    hdu_bin_table = get_table_from_file(fname=args.path_to_fits, format=args.format, delim=args.delim)
+    hdu_bin_table = get_table_from_file(fname=args.source_path, format=args.format, delim=args.delim)
     collection = get_collection(args.coll, args.db, args.uri)
 
     record_count = upload_hdu_list(hdu_bin_table, collection)
@@ -414,7 +414,7 @@ parser.add_argument('--delim', type=allow_escape_chars, default=None,
 args = parser.parse_args()
 
 if args.src is None:
-    args.src = args.path_to_fits.split(os_path_sep)[-1]
+    args.src = args.source_path.split(os_path_sep)[-1]
 
 if args.format == "guess":
     args.format = None
