@@ -119,7 +119,7 @@ def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
     """
     global args
 
-    record_data = {SOURCE_KEY: args.path_to_fits.split(os_path_sep)[-1]}
+    record_data = {SOURCE_KEY: args.src}
     coords = {"ra": {"min": None, "max": None}, "dec": {"min": None, "max": None}}
     for c in cols:
         # record[c.name] = {"value": rec[c.name], "unit": c.unit}
@@ -358,8 +358,12 @@ parser.add_argument('-c', '--coll', help='MongoDB collection name')
 parser.add_argument('-b', '--buffer', type=int, help='Size of buffer of ready-to-upload records')
 parser.add_argument('-s', '--sep', type=float, default=0.0,
                     help='Separation threshold under which objects are considered the same\n(units: arcseconds)')
+parser.add_argument('--src', help="Optionally override file source for inserted records", default=None)
 
 args = parser.parse_args()
+
+if args.src is None:
+    args.src = args.path_to_fits.split(os_path_sep)[-1]
 
 if __name__ == '__main__':
     main()
