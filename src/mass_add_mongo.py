@@ -30,18 +30,18 @@ total_record_count = 0
 logging.getLogger().setLevel(logging.NOTSET)
 log = logging.getLogger('astrodb')
 
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
 
-fh = logging.FileHandler('astrodb.log')
-fh.setLevel(logging.DEBUG)
+file_handler = logging.FileHandler('astrodb.log')
+file_handler.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
 
-log.addHandler(ch)
-log.addHandler(fh)
+log.addHandler(console_handler)
+log.addHandler(file_handler)
 
 
 # Process functions
