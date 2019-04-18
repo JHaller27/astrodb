@@ -1,6 +1,7 @@
 #!../venv/bin/python
 
 from astropy.io import fits
+from astropy.io import ascii
 from astropy import units as u
 from astropy.coordinates import *
 from os import sep as os_path_sep
@@ -46,21 +47,29 @@ log.addHandler(fh)
 # Process functions
 # =========================================================
 
-def open_fits(fname: str) -> fits.HDUList:
+def get_table_from_file(fname: str, format: str) -> fits.BinTableHDU:
     """
-    Open a .fits file
-    :param fname: path to a .fits file
+    Open a .fits or ascii source file
+    :param fname: path to source file
+    :param format: file format
     :return: An HDUList object
     """
     try:
         log.info("Opening '%s'" % fname)
-        return fits.open(fname, memmp=True)
+        if format == "fits":
+            return fits.open(fname, memmp=True)[1]
+        elif format == "guess":
+            data = ascii.read(fname)
+            return fits.BinTableHDU(data)
+        else:
+            data = ascii.read(fname, format=format, delimiter="\t")
+            return fits.BinTableHDU(data)
     except FileNotFoundError:
         log.error("File not found!")
         exit(1)
     except OSError:
         log.error("Something went wrong reading '%s'..." % fname)
-        log.error("Are you sure this is a fits-format file?")
+        log.error("Are you sure this is a %s-format file?" % format)
         exit(1)
 
 
@@ -100,13 +109,13 @@ def get_collection(
         exit(1)
 
 
-def hdu_records(hdu_list: fits.HDUList) -> fits.FITS_rec:
+def hdu_records(hdu_list: fits.BinTableHDU) -> fits.FITS_rec:
     """
     Generator function to yield each record in hdu_list
     :param hdu_list: HDUList object (containing data)
     :return: List of HDU records
     """
-    return hdu_list[1].data
+    return hdu_list.data
 
 
 def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
@@ -123,7 +132,10 @@ def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
     coords = {"ra": {"min": None, "max": None}, "dec": {"min": None, "max": None}}
     for c in cols:
         # record[c.name] = {"value": rec[c.name], "unit": c.unit}
-        record_data[c.name] = rec[c.name].item()
+        try:
+            record_data[c.name] = rec[c.name].item()
+        except AttributeError:
+            record_data[c.name] = rec[c.name]
 
         if c.name.lower() == "ra":
             if coords["ra"]["min"] is None or rec[c.name] < coords["ra"]["min"]:
@@ -139,14 +151,14 @@ def generate_record(rec: fits.FITS_record, cols: fits.ColDefs) -> dict:
     return {DATA_KEY: [record_data], COORDS_KEY: coords}
 
 
-def get_fits_columns(hdu_list: fits.HDUList) -> fits.ColDefs:
+def get_fits_columns(hdu_list: fits.BinTableHDU) -> fits.ColDefs:
     """
     Converts FITS columns to python "columns"
     :param hdu_list: HDUList object (containing columns)
     :return: Ordered list of dictionaries of the form
              {'name': <column-name>, 'format': <data-format-code>}
     """
-    return hdu_list[1].columns
+    return hdu_list.columns
 
 
 def insert_records(collection: pymongo.collection, record_list: list) -> int:
@@ -166,12 +178,12 @@ def insert_records(collection: pymongo.collection, record_list: list) -> int:
         exit(1)
 
 
-def upload_hdu_list(hdu_list: fits.HDUList,
+def upload_hdu_list(hdu_bin_table: fits.BinTableHDU,
                     collection: pymongo.collection) -> int:
     """
     Reads hdu_list, extracts data into dict "records", and
     uploads chunks of data to a mongo collection.
-    :param hdu_list: HDUList object from which to read
+    :param hdu_bin_table: BinTableHDU object from which to read
     :param collection: Mongo collection to insert into
     :return: Number of records successfully written
     """
@@ -180,10 +192,10 @@ def upload_hdu_list(hdu_list: fits.HDUList,
     record_buffer = []  # List of records (as dicts)
     inserted_record_count = 0  # Total number of records inserted thus far
 
-    columns = get_fits_columns(hdu_list)
+    columns = get_fits_columns(hdu_bin_table)
 
     log.info('Generating records... ')
-    hdu_record_list = hdu_records(hdu_list)
+    hdu_record_list = hdu_records(hdu_bin_table)
     total_record_count = len(hdu_record_list)
     for r in hdu_record_list:
         record = generate_record(r, columns)
@@ -338,17 +350,41 @@ def main():
     """
     global args
 
-    with open_fits(fname=args.path_to_fits) as hdu_table:
-        collection = get_collection(args.coll, args.db, args.uri, drop=True)
+    hdu_bin_table = get_table_from_file(fname=args.path_to_fits, format=args.format)
+    collection = get_collection(args.coll, args.db, args.uri)
 
-        record_count = upload_hdu_list(hdu_table, collection)
+    record_count = upload_hdu_list(hdu_bin_table, collection)
 
-        log.info('Done!')
+    log.info('Done!')
 
-        log.info('Database successfully populated with {} records'.format(record_count))
+    log.info('Database successfully populated with {} records'.format(record_count))
 
 
-parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+formats = [
+    "aastex",
+    "basic",
+    "cds",
+    "commented_header",
+    "csv",
+    "daophot",
+    "ecsv",
+    "fits",
+    "fixed_width",
+    "fixed_width_no_header",
+    "fixed_width_two_line",
+    "html",
+    "ipac",
+    "latex",
+    "no_header",
+    "rdb",
+    "rst",
+    "sextractor",
+    "tab",
+    "guess"
+]
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                 epilog="Valid options for FMT: "+(", ".join(formats)))
 
 parser.add_argument('path_to_fits')
 parser.add_argument('-u', '--uri', help='MongoDB URI',
@@ -361,11 +397,16 @@ parser.add_argument('-b', '--buffer', metavar="BUF", type=int, default=10,
 parser.add_argument('-s', '--sep', type=float, default=0.0,
                     help='Separation threshold under which objects are considered the same\n(units: arcseconds)')
 parser.add_argument('--src', help="Optionally override file source for inserted records", required=False)
+parser.add_argument('-f', '--format', metavar="FMT", choices=formats, default="fits",
+                    help="Format of source file (fits or an ascii format)")
 
 args = parser.parse_args()
 
 if args.src is None:
     args.src = args.path_to_fits.split(os_path_sep)[-1]
+
+if args.format == "guess":
+    args.format = None
 
 if __name__ == '__main__':
     main()
